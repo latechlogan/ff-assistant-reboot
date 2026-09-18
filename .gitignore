@@ -1,0 +1,7 @@
+node_modules/
+.env
+# League data never lives here — it is in ../ff-assistant-data, reached via DATA_ROOT.
+# This entry is a second line of defence, not the plan.
+data/
+.DS_Store
+reports/
