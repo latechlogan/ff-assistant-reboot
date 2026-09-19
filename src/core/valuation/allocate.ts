@@ -48,6 +48,22 @@ export function allocateFaab(args: {
 
   const supply = availableTotal + chopsRemaining * rosteredPerTeam;
   const reserve = floor * contribution.size;
+
+  // A floor is only affordable if the room can actually pay it to every available
+  // player. Mid-season the pool is a fraction of a draft budget while the available
+  // list runs to thousands, so `floor × rows` can exceed it — and an unguarded
+  // subtraction then makes `distributable` negative and prices the BEST player at
+  // minus dollars. Refuse instead: the 2026 tool reached the same conclusion from the
+  // other direction and threw on any positive minimum bid, because floor × slots is
+  // the wrong mid-season reserve and nobody has designed the right one.
+  if (reserve >= pool) {
+    throw new Error(
+      `a floor of ${floor} over ${contribution.size} available players reserves ${reserve}, ` +
+        `which the pool of ${pool} cannot pay. The right mid-season reserve has not been ` +
+        `designed — see DECISIONS.md and tickets/003.`,
+    );
+  }
+
   const distributable = pool - reserve;
   const dollarsPerVorp = supply > 0 ? distributable / supply : 0;
 

@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { buildWaiverBoard } from "../../core/board/build.ts";
 import { deriveLeagueConfig } from "../../core/config/derive.ts";
 import { buildPlayerIndex } from "../../core/players/index-players.ts";
-import { scoreStatLine } from "../../core/scoring/score.ts";
+import { scoreWeeklyRows } from "../../core/projections/weekly.ts";
 import { summarizeLeagueState } from "../../core/rosters/state.ts";
 import { UnsupportedLeagueError, type WeeklyPoints } from "../../core/types.ts";
 import { createLogger } from "../obs/logger.ts";
@@ -98,24 +98,15 @@ async function main(): Promise<void> {
   for (let w = week; w <= LAST_NFL_WEEK; w++) {
     const projections = await source.weeklyProjections(season, w, policy);
     files.push(projections.file);
-    for (const row of projections.data) {
-      if (!index.has(row.player_id)) {
-        unmatched += 1;
-        continue;
-      }
-      weekly.push({
-        playerId: row.player_id,
-        week: row.week,
-        points: scoreStatLine(row.stats, config.scoring),
-      });
-    }
-  }
-  if (unmatched > 0) {
-    // Loud at any verbosity: a silently dropped player corrupts replacement level.
-    logger.log("warn", "projections.unmatched", {
-      rows: unmatched,
-      note: "projection rows whose player id is not in the index",
+    // The counting and the warning live in the core, where a test can hold them to it.
+    const scored = scoreWeeklyRows({
+      rows: projections.data,
+      index,
+      scoring: config.scoring,
+      logger,
     });
+    weekly.push(...scored.weekly);
+    unmatched += scored.unmatched;
   }
 
   const board = buildWaiverBoard({
@@ -124,9 +115,11 @@ async function main(): Promise<void> {
     state: leagueState,
     weekly,
     throughWeek: LAST_NFL_WEEK,
+    ...(entry.chopsPerWeek === undefined ? {} : { chopsPerWeek: entry.chopsPerWeek }),
   });
   logger.log("debug", "board.built", {
     rows: board.rows.length,
+    unmatchedRows: unmatched,
     belowReplacement: board.diagnostics.belowReplacement,
     replacement: board.diagnostics.replacement,
     economy: board.diagnostics.economy,
@@ -147,7 +140,7 @@ function print(
 ): void {
   const { diagnostics } = board;
   const money = diagnostics.economy !== null;
-  const rows = opts.all ? board.rows : board.rows.slice(0, 40);
+  const rows = opts.all ? board.everyRow : board.rows.slice(0, 40);
 
   const header = [
     `${opts.leagueKey} — week ${diagnostics.week}, ${diagnostics.liveTeams} teams live`,
@@ -178,8 +171,12 @@ function print(
     );
   }
 
-  if (!opts.all && board.rows.length > rows.length) {
-    console.log(`\n… ${board.rows.length - rows.length} more above replacement (--all to print)`);
+  if (!opts.all) {
+    const hidden = board.rows.length - rows.length;
+    console.log(
+      `\n${hidden > 0 ? `… ${hidden} more above replacement, and ` : "… "}` +
+        `${diagnostics.belowReplacement} below it, not printed (--all prints every available player)`,
+    );
   }
   // Said plainly, every run: what a dollar buys on average over the rest of the season.
   if (diagnostics.economy) {

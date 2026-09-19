@@ -26,15 +26,10 @@ export type PayloadSource = {
   nflState(): Promise<AsOf<unknown>>;
 };
 
-/** Reads and writes the artifacts we deliberately keep. Implemented by the store adapter. */
-export type ArtifactStore = {
-  /** Null when that league-week has never been frozen. */
-  readBoard(season: string, week: number, leagueKey: string): Promise<unknown>;
-  writeBoard(board: unknown): Promise<{ path: string; overwrote: boolean }>;
-  /** Null when no curve has been measured yet — pricing then says so rather than guessing. */
-  readCurve(version?: number): Promise<unknown>;
-  writeCurve(curve: unknown): Promise<{ path: string }>;
-};
+/*
+ * ArtifactStore (frozen boards, measured curves) arrives with slice 2, which is what
+ * writes them. Declaring it now would be a port nothing implements.
+ */
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 

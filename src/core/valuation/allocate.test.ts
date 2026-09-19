@@ -182,3 +182,42 @@ describe("spreading the pool over the season's supply", () => {
     expect([...allocateFaab(args).values]).toEqual([...allocateFaab(args).values]);
   });
 });
+
+describe("a floor the room cannot pay", () => {
+  test("AC7 — a reserve larger than the pool is refused, not turned into negative prices", () => {
+    // The live week-2 shape: 4,137 available players, $13,701 in the room. At a $5
+    // minimum bid the reserve is $20,685 — more than the pool — and an unguarded
+    // subtraction prices the best player at −$13.90 while the board still "closes".
+    const availableVorp = new Map(
+      Array.from({ length: 4137 }, (_, i) => [`p${i}`, i === 0 ? 9.2 : 0] as const),
+    );
+
+    const call = (): unknown =>
+      allocateFaab({
+        availableVorp,
+        rosteredVorpByTeam: [241],
+        pool: 13701,
+        floor: 5,
+        chopsRemaining: 14,
+      });
+
+    expect(call).toThrow(/reserve|floor|pool/i);
+  });
+
+  test("AC7 — no price is ever negative, whatever the floor", () => {
+    const { values } = allocateFaab({
+      availableVorp: new Map([
+        ["a", 60],
+        ["b", 0],
+      ]),
+      rosteredVorpByTeam: [10],
+      pool: 100,
+      floor: 1,
+      chopsRemaining: 1,
+    });
+
+    for (const value of values.values()) {
+      expect(value).toBeGreaterThanOrEqual(0);
+    }
+  });
+});

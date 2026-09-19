@@ -46,7 +46,10 @@ export type BoardDiagnostics = {
 };
 
 export type WaiverBoard = {
+  /** Rows above replacement: the week's actual decisions. */
   readonly rows: readonly PricedRow[];
+  /** Every available player, priced — what `--all` prints. */
+  readonly everyRow: readonly PricedRow[];
   readonly diagnostics: BoardDiagnostics;
 };
 
@@ -58,15 +61,26 @@ export function buildWaiverBoard(args: {
   weekly: readonly WeeklyPoints[];
   /** The last week of the season being priced. */
   throughWeek: number;
+  /** Chops per week, from the league registry. Required for a guillotine room. */
+  chopsPerWeek?: number;
 }): WaiverBoard {
-  const { config, index, state, weekly, throughWeek } = args;
+  const { config, index, state, weekly, throughWeek, chopsPerWeek } = args;
   const fromWeek = state.week;
   const weeksRemaining = throughWeek - fromWeek + 1;
 
-  // A guillotine week is only worth what you are likely to be alive to collect.
+  // A guillotine week is only worth what you are likely to be alive to collect. The
+  // cadence is a fact about the room that Sleeper does not publish, so it is required
+  // rather than assumed: at two chops a week, assuming one prices every future week
+  // as twice as likely as it is.
+  if (config.format === "guillotine" && chopsPerWeek === undefined) {
+    throw new Error(
+      `this guillotine league has no chopsPerWeek in the registry, and it cannot be ` +
+        `derived from Sleeper. Add it to leagues.json in the data repo.`,
+    );
+  }
   const weights =
-    config.format === "guillotine"
-      ? survivalWeights({ liveTeams: state.liveTeams, weeksRemaining, chopsPerWeek: 1 })
+    config.format === "guillotine" && chopsPerWeek !== undefined
+      ? survivalWeights({ liveTeams: state.liveTeams, weeksRemaining, chopsPerWeek })
       : null;
 
   const points = restOfSeasonPoints({
@@ -96,7 +110,9 @@ export function buildWaiverBoard(args: {
             .map((roster) => roster.playerIds.reduce((sum, id) => sum + vorpOf(id), 0)),
           pool: state.faabPool,
           floor: config.waiver.minBid ?? 0,
-          // Every remaining chop releases a whole roster into the pool.
+          // Every remaining chop releases a whole roster into the pool. The season
+          // ends with one survivor however fast the room chops, so the COUNT of
+          // remaining chops does not depend on the cadence — only their timing does.
           chopsRemaining: config.format === "guillotine" ? state.liveTeams - 1 : 0,
         });
 
@@ -115,14 +131,15 @@ export function buildWaiverBoard(args: {
         value: allocation?.values.get(playerId) ?? null,
       };
     })
-    // Value first where there is money, VORP otherwise; the player id breaks ties so
-    // two runs cannot disagree about order.
+    // By VORP, best first — value is monotone in it, so this is the same order with
+    // or without dollars. The player id breaks ties, so two runs cannot disagree.
     .sort((a, b) => b.vorp - a.vorp || a.playerId.localeCompare(b.playerId));
 
   const claimable = rows.filter((row) => row.vorp > 0);
 
   return {
     rows: claimable,
+    everyRow: rows,
     diagnostics: {
       week: fromWeek,
       throughWeek,

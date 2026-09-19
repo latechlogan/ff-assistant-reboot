@@ -23,6 +23,7 @@ import { SleeperClient } from "../src/adapters/sleeper/client.ts";
 import { SleeperSource } from "../src/adapters/sleeper/sleeper.ts";
 import { createLogger } from "../src/adapters/obs/logger.ts";
 import type { Player, ProjectionRow, Roster } from "../src/adapters/sleeper/schemas.ts";
+import { PRICED_POSITIONS } from "../src/core/types.ts";
 
 const FIXTURE_DIR = path.resolve(import.meta.dirname, "../test/fixtures");
 /** Fake ids are unmistakable on sight and by the privacy scan: 9 then zeros then a counter. */
@@ -30,7 +31,7 @@ const FAKE_LEAGUE_ID = "900000000000000001";
 const fakeOwner = (n: number) => `owner_${String(n).padStart(3, "0")}`;
 /** Enough players to exercise replacement level at every position without a 3,000-row file. */
 const PLAYERS_PER_POSITION = 12;
-const POSITIONS = ["QB", "RB", "WR", "TE", "K"] as const;
+const POSITIONS = PRICED_POSITIONS;
 
 const { values } = parseArgs({
   options: { refresh: { type: "boolean", default: false }, week: { type: "string" } },

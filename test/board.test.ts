@@ -41,11 +41,32 @@ function board(week = 2) {
     config,
     index,
     state,
-    result: buildWaiverBoard({ config, index, state, weekly, throughWeek: THROUGH_WEEK }),
+    // The cadence comes from the league registry, not from Sleeper, so the caller
+    // supplies it — one chop a week is this room's house rule.
+    result: buildWaiverBoard({
+      config,
+      index,
+      state,
+      weekly,
+      throughWeek: THROUGH_WEEK,
+      chopsPerWeek: 1,
+    }),
   };
 }
 
 describe("the board the CLI prints", () => {
+  test("AC2 — a guillotine board refuses to guess the chop cadence", () => {
+    const config = deriveLeagueConfig(leagueFixture());
+    const index = buildPlayerIndex(playersFixture());
+    const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week: 2 });
+
+    // Sleeper publishes the format but not the cadence. Assuming one chop a week
+    // would price a two-a-week room on a half-speed survival curve.
+    expect(() =>
+      buildWaiverBoard({ config, index, state, weekly: [], throughWeek: THROUGH_WEEK }),
+    ).toThrow(/chopsPerWeek/);
+  });
+
   test("AC1 — every row is an available player above replacement, priced in FAAB dollars", () => {
     const { state, result } = board();
 

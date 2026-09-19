@@ -18,7 +18,11 @@ import type { AsOf } from "../../core/ports.ts";
 
 export const DEFAULT_DATA_ROOT = "../ff-assistant-data";
 
+/** Bumped when the envelope's own shape changes; a reader that meets an unknown one refuses. */
+export const ENVELOPE_SCHEMA_VERSION = 1;
+
 const EnvelopeSchema = z.object({
+  schemaVersion: z.literal(ENVELOPE_SCHEMA_VERSION),
   kind: z.string(),
   fetchedAt: z.iso.datetime(),
   source: z.string(),
@@ -31,6 +35,13 @@ const LeagueEntrySchema = z.object({
     .min(1)
     .regex(/^[a-z0-9-]+$/, "league keys are lowercase slugs"),
   leagueId: z.string().regex(/^\d+$/, "a Sleeper league id is digits"),
+  /**
+   * Chops per week, for a guillotine room. Sleeper exposes the format but not the
+   * cadence, and the cadence sets the survival curve, the capacity guard and the
+   * count of chops still to come — so it is stated here by hand rather than assumed
+   * to be one, which would price a two-a-week room on a half-speed curve.
+   */
+  chopsPerWeek: z.number().int().positive().optional(),
 });
 
 const LeaguesFileSchema = z.object({
@@ -41,9 +52,15 @@ const LeaguesFileSchema = z.object({
 export type LeagueEntry = z.infer<typeof LeagueEntrySchema>;
 export type LeaguesFile = z.infer<typeof LeaguesFileSchema>;
 
-/** Timestamps go in filenames, so colons are out: 2026-09-18T20-58-17Z. */
+/**
+ * Timestamps go in filenames, so colons are out: 2026-09-18T20-58-17-123Z.
+ * Milliseconds are kept: two fetches of the same kind inside one second are ordinary
+ * (the Tuesday run pulls 17 weeks of projections in a few hundred milliseconds), and
+ * truncating to seconds would have them overwrite each other — against the one rule
+ * this module exists to keep.
+ */
 export function stampFrom(iso: string): string {
-  return iso.replace(/:/g, "-").replace(/\.\d+Z$/, "Z");
+  return iso.replace(/[:.]/g, "-");
 }
 
 export class DataRootError extends Error {}
@@ -81,6 +98,7 @@ export class Store {
     mkdirSync(dir, { recursive: true });
     const file = path.join("raw", args.season, `${args.kind}--${stampFrom(args.fetchedAt)}.json`);
     const envelope = {
+      schemaVersion: ENVELOPE_SCHEMA_VERSION,
       kind: args.kind,
       fetchedAt: args.fetchedAt,
       source: args.source,
@@ -106,8 +124,18 @@ export class Store {
       JSON.parse(readFileSync(path.join(this.root, file), "utf8")),
     );
     if (!parsed.success) {
+      const found = (
+        JSON.parse(readFileSync(path.join(this.root, file), "utf8")) as {
+          schemaVersion?: unknown;
+        }
+      ).schemaVersion;
+      const legacy = typeof found === "number" ? String(found) : undefined;
       throw new DataRootError(
-        `as-of file is not a valid envelope: ${file}\n${parsed.error.message}`,
+        legacy === undefined
+          ? `as-of file ${file} was written before envelopes carried a schemaVersion. ` +
+              `Sleeper payloads are refetchable — re-run with --refresh.`
+          : `as-of file ${file} is envelope version ${legacy}; this build reads ` +
+              `version ${ENVELOPE_SCHEMA_VERSION}. Re-run with --refresh.\n${parsed.error.message}`,
       );
     }
     return {

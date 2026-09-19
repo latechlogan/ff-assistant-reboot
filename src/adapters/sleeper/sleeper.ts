@@ -1,4 +1,5 @@
 import type { AsOf } from "../../core/ports.ts";
+import { PRICED_POSITIONS } from "../../core/types.ts";
 import type { Logger } from "../../core/ports.ts";
 import type { Store } from "../store/store.ts";
 import { SleeperClient } from "./client.ts";
@@ -154,7 +155,8 @@ export class SleeperSource {
     week: number,
     policy: FetchPolicy = {},
   ): Promise<AsOf<ProjectionRow[]>> {
-    const positions = ["QB", "RB", "WR", "TE", "K"].map((p) => `position[]=${p}`).join("&");
+    // The taxonomy has one home: the core decides what this project prices.
+    const positions = PRICED_POSITIONS.map((p) => `position[]=${p}`).join("&");
     return this.load({
       season,
       kind: `projections-wk${String(week).padStart(2, "0")}`,
