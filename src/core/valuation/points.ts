@@ -3,22 +3,25 @@ import type { WeeklyPoints } from "../types.ts";
 /**
  * Rest-of-season points per player: the weeks still to come, summed.
  *
- * Contract:
- *  - Sum each player's weekly points from the current week through the season's last
- *    week. A week with no row for a player contributes 0, not a guess.
- *  - With survival weights, week w's points are multiplied by the weight for that
- *    week. Weights are indexed by position in the remaining-weeks list, and the
- *    weekly points are keyed by ABSOLUTE week — mixing the two offsets silently is
- *    the cheapest wrong-but-plausible price available, so the anchor week is explicit.
- *  - Without weights (a league that is not a guillotine), the sum is unweighted.
- *  - Never blended with a season-long projection: the two are on different scales.
+ * Weekly points are keyed by ABSOLUTE week; weights are indexed from the anchor week.
+ * Mixing the two is the cheapest wrong-but-plausible price available, so the anchor is
+ * explicit and the offset is computed once, here.
  */
-export function restOfSeasonPoints(_args: {
+export function restOfSeasonPoints(args: {
   weekly: readonly WeeklyPoints[];
   fromWeek: number;
   throughWeek: number;
   /** One weight per remaining week, starting at `fromWeek`. Omit for no weighting. */
   weights?: readonly number[];
 }): Map<string, number> {
-  throw new Error("not implemented");
+  const { weekly, fromWeek, throughWeek, weights } = args;
+  const totals = new Map<string, number>();
+
+  for (const row of weekly) {
+    if (row.week < fromWeek || row.week > throughWeek) continue;
+    const weight = weights ? (weights[row.week - fromWeek] ?? 1) : 1;
+    totals.set(row.playerId, (totals.get(row.playerId) ?? 0) + row.points * weight);
+  }
+
+  return totals;
 }
