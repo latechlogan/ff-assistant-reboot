@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: improvement
 created: 2026-09-18
 ---
