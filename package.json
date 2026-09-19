@@ -1,0 +1,32 @@
+{
+  "name": "ff-assistant-reboot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "check": "prettier --check . && eslint . && tsc --noEmit && depcruise src && vitest run && pnpm privacy-scan && gitleaks git --no-banner",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "graph": "depcruise src --output-type mermaid > docs/graph.md",
+    "privacy-scan": "node scripts/privacy-scan.ts",
+    "archive": "node scripts/archive.ts"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.2",
+    "dependency-cruiser": "18.3.1",
+    "eslint": "10.11.0",
+    "prettier": "3.9.8",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0",
+    "vitest": "5.0.1"
+  }
+}

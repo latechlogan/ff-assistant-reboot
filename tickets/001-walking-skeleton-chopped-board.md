@@ -1,5 +1,5 @@
 ---
-status: open
+status: in-progress
 kind: improvement
 created: 2026-09-18
 ---

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Local is the source of truth; CI is confirmation. Both run the same command.
+exec pnpm check
