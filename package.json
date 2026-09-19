@@ -8,13 +8,15 @@
     "node": ">=24"
   },
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks",
+    "archive": "node scripts/archive.ts",
     "check": "prettier --check . && eslint . && tsc --noEmit && depcruise src && vitest run && pnpm privacy-scan && gitleaks git --no-banner",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "fixtures": "node scripts/fixtures.ts",
     "graph": "depcruise src --output-type mermaid > docs/graph.md",
+    "prepare": "git config core.hooksPath .githooks",
+    "privacy-hashes": "node scripts/privacy-hashes.ts",
     "privacy-scan": "node scripts/privacy-scan.ts",
-    "archive": "node scripts/archive.ts"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "zod": "4.6.5"
