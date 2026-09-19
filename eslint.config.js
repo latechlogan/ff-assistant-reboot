@@ -11,7 +11,7 @@ import tseslint from "typescript-eslint";
  * reach the network, the filesystem, the clock, or the environment.
  */
 export default tseslint.config(
-  { ignores: ["node_modules", "docs/graph.md", "coverage", "reports"] },
+  { ignores: ["node_modules", "docs/graph.md", "coverage", "reports", ".stryker-tmp"] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

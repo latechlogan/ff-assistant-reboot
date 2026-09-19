@@ -5,3 +5,6 @@ node_modules/
 data/
 .DS_Store
 reports/
+
+# Stryker scratch; it survives a crashed run.
+.stryker-tmp/

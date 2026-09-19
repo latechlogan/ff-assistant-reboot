@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Coverage says the line ran; the mutation score says the tests would notice if it broke. Scoped to the pure core, where wrong-and-green is expensive: a bad allocation produces a plausible number, and a plausible number becomes a real bid. Adapters and the CLI are excluded on purpose \u2014 mutating a fetch wrapper is noise. Run from /vet, never from the Stop hook (docs/trust.md).",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "reporters": ["progress", "clear-text"],
+  "mutate": [
+    "src/core/scoring/**/*.ts",
+    "src/core/survival/**/*.ts",
+    "src/core/valuation/**/*.ts",
+    "src/core/board/**/*.ts",
+    "!src/core/**/*.test.ts"
+  ],
+  "thresholds": {
+    "high": 90,
+    "low": 75,
+    "break": 70
+  },
+  "timeoutMS": 20000,
+  "concurrency": 4,
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  }
+}

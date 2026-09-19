@@ -13,6 +13,7 @@
     "criteria": "node scripts/criteria.ts",
     "fixtures": "node scripts/fixtures.ts",
     "graph": "depcruise src --output-type mermaid > docs/graph.md",
+    "mutate": "stryker run",
     "prepare": "git config core.hooksPath .githooks",
     "privacy-hashes": "node scripts/privacy-hashes.ts",
     "privacy-scan": "node scripts/privacy-scan.ts",
@@ -25,6 +26,8 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@stryker-mutator/core": "10.0.0",
+    "@stryker-mutator/vitest-runner": "10.0.0",
     "@types/node": "26.6.2",
     "dependency-cruiser": "18.3.1",
     "eslint": "10.11.0",
