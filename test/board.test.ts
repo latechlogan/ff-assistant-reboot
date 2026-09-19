@@ -1,0 +1,114 @@
+import { describe, expect, test } from "vitest";
+import { buildWaiverBoard } from "../src/core/board/build.ts";
+import { deriveLeagueConfig } from "../src/core/config/derive.ts";
+import { buildPlayerIndex } from "../src/core/players/index-players.ts";
+import { summarizeLeagueState } from "../src/core/rosters/state.ts";
+import { scoreStatLine } from "../src/core/scoring/score.ts";
+import type { WeeklyPoints } from "../src/core/types.ts";
+import {
+  leagueFixture,
+  playersFixture,
+  projectionsFixture,
+  rostersFixture,
+} from "./load-fixtures.ts";
+
+/**
+ * AC1 at the seam below the terminal: the whole pipeline over real fixtures, from
+ * payloads to priced rows. The CLI above this only fetches, renders and exits.
+ *
+ * Written by the implementer, not the criteria author — the core's own tests are the
+ * independent ones (docs/trust.md). What this adds is that the pieces compose.
+ */
+
+const THROUGH_WEEK = 18;
+
+function board(week = 2) {
+  const config = deriveLeagueConfig(leagueFixture());
+  const index = buildPlayerIndex(playersFixture());
+  const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week });
+
+  // The fixture holds one week of projections; every later week is simply absent,
+  // which the pipeline must treat as zero rather than as a gap to fill.
+  const weekly: WeeklyPoints[] = projectionsFixture()
+    .filter((row) => index.has(row.player_id))
+    .map((row) => ({
+      playerId: row.player_id,
+      week: row.week,
+      points: scoreStatLine(row.stats, config.scoring),
+    }));
+
+  return {
+    config,
+    index,
+    state,
+    result: buildWaiverBoard({ config, index, state, weekly, throughWeek: THROUGH_WEEK }),
+  };
+}
+
+describe("the board the CLI prints", () => {
+  test("AC1 — every row is an available player above replacement, priced in FAAB dollars", () => {
+    const { state, result } = board();
+
+    expect(result.rows.length).toBeGreaterThan(0);
+    for (const row of result.rows) {
+      expect(state.rosteredIds.has(row.playerId)).toBe(false); // available, by construction
+      expect(row.vorp).toBeGreaterThan(0); // above replacement, or it would not print
+      expect(row.value).not.toBeNull(); // this league has FAAB, so it has dollars
+      expect(row.value ?? 0).toBeGreaterThanOrEqual(0);
+    }
+    // Sorted by VORP, best first, so the top of the board is the week's decision.
+    const vorps = result.rows.map((row) => row.vorp);
+    expect([...vorps].sort((a, b) => b - a)).toEqual(vorps);
+  });
+
+  test("AC7 — the printed dollars close over the rows that were priced, not over everyone", () => {
+    const { state, result } = board();
+    const economy = result.diagnostics.economy;
+    if (!economy) throw new Error("the fixture league has FAAB; this should not be null");
+
+    // Every available player was priced, including those left off the board.
+    expect(economy.pool).toBe(state.faabPool);
+    expect(economy.supply).toBeGreaterThanOrEqual(economy.availableVorp);
+    // The rows shown are a subset, so their dollars are a fraction of the pool —
+    // summing every row in the league would exceed it, which is the 2026 trap.
+    const shown = result.rows.reduce((sum, row) => sum + (row.value ?? 0), 0);
+    expect(shown).toBeLessThanOrEqual(economy.pool);
+  });
+
+  test("AC8 — two runs over the same payloads produce identical boards", () => {
+    expect(board().result).toEqual(board().result);
+  });
+
+  test("AC5 — a chopped roster's players are priced as available", () => {
+    const { index, result } = board();
+    const chopped = rostersFixture().find((r) => r.settings.eliminated === 1);
+
+    expect(chopped).toBeDefined();
+    // The fixture's chopped roster was emptied by Sleeper itself, so the assertion
+    // that matters is the inverse: nobody on a LIVE roster is on the board.
+    const live = rostersFixture().filter((r) => r.settings.eliminated !== 1);
+    const owned = new Set(live.flatMap((r) => r.players ?? []));
+    for (const row of result.rows) {
+      expect(owned.has(row.playerId)).toBe(false);
+      expect(index.has(row.playerId)).toBe(true);
+    }
+  });
+
+  test("AC10 — the board says how many rows it left below replacement", () => {
+    const { state, result } = board();
+
+    expect(result.diagnostics.belowReplacement).toBe(
+      state.availableIds.length - result.rows.length,
+    );
+    expect(result.diagnostics.availablePool).toBe(state.availableIds.length);
+  });
+
+  test("REG 2026-09-18 — a guillotine board weights the weeks it is likely to be alive for", () => {
+    const { result } = board();
+
+    const weights = result.diagnostics.survivalWeights;
+    expect(weights).not.toBeNull();
+    expect(weights?.[0]).toBe(1); // this week is certain
+    expect(weights?.[1] ?? 1).toBeLessThan(1); // every later week is discounted
+  });
+});

@@ -10,13 +10,15 @@
   "scripts": {
     "archive": "node scripts/archive.ts",
     "check": "prettier --check . && eslint . && tsc --noEmit && depcruise src && vitest run && pnpm privacy-scan && gitleaks git --no-banner",
+    "criteria": "node scripts/criteria.ts",
     "fixtures": "node scripts/fixtures.ts",
     "graph": "depcruise src --output-type mermaid > docs/graph.md",
     "prepare": "git config core.hooksPath .githooks",
     "privacy-hashes": "node scripts/privacy-hashes.ts",
     "privacy-scan": "node scripts/privacy-scan.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "waivers": "node src/adapters/cli/waivers.ts"
   },
   "dependencies": {
     "zod": "4.6.5"
