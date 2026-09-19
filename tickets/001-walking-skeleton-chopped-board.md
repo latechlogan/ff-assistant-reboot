@@ -40,8 +40,8 @@ Does NOT touch: the board artifact and freezing (ticket 002), the standard leagu
 (003), the crawl or bid curve (004), the bid range, balance and spend pace (005).
 
 ## Done looks like
-*(proposed — Logan approves before implementation; the core tests are written from these
-by a separate agent, before the implementation exists)*
+*Approved by Logan 2026-09-18. The core tests are written from these criteria by a
+separate agent, before the implementation exists.*
 
 - **AC1** — `pnpm waivers --league chopped` prints a table of available players with
   positive VORP, one row each: player, position, weighted rest-of-season points, VORP,
@@ -83,7 +83,7 @@ by a separate agent, before the implementation exists)*
   standard league, everything bid-related.
 
 ## Plan
-*(proposed)*
+*Approved by Logan 2026-09-18.*
 
 1. Package scaffolding and the check command; `depcruise` rule for core purity first, so
    the boundary exists before there is code to violate it.

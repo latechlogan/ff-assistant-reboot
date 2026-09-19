@@ -207,4 +207,5 @@ one.
 - [x] 4 Architecture and interfaces
 - [x] 5 Trust layer
 - [x] 6 Delivery
-- [ ] 7 Scaffolded
+- [x] 7 Scaffolded — kickoff complete 2026-09-18. The repo is now the plan; `docs/` holds
+  the reasoning, DECISIONS.md holds the trail.
