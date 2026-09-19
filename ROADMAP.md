@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-09-18 <!-- /wrap refreshes this; if this date is more than ~2 weeks old, treat the goal as suspect and ask before optimizing for it -->
+Last updated: 2026-09-18 (slice 1 complete, vetted) <!-- /wrap refreshes this; if this date is more than ~2 weeks old, treat the goal as suspect and ask before optimizing for it -->
 
 ## Current goal
 Replace the 2026 tool's waiver board with one Logan trusts and can reason about: for
@@ -13,9 +13,12 @@ old `ff-assistant` keeps running Tuesdays until then and is deleted only after t
 board has been used for real.
 
 ## This cycle's focus
-1. **Walking skeleton** — chopped league, one week, end to end: fetch → config → player
-   index → weekly projections → local scoring → replacement/VORP → FAAB value → printed
-   table. Scrubbed fixtures and a determinism test.
+1. ~~**Walking skeleton** — chopped league, one week, end to end~~ — done 2026-09-18
+   (ticket 001, vetted). 89 tests; the core's tests were written from the approved
+   criteria by a separate agent before any implementation existed. Ran live against
+   both leagues. The reviewer caught a bug the whole suite missed — a floor reserve
+   larger than the pool priced the best player at negative dollars — now refused.
+   Kickers price at the floor (ticket 003 holds the deeper question).
 2. **Freeze and prove** — the `Board` artifact with `schemaVersion` and diagnostics; the
    one-time parity check against `../ff-assistant-data/archive/2026-waiver-boards/`;
    our own board pinned as the golden test.
@@ -29,6 +32,11 @@ board has been used for real.
 
 Items 1–3 are what the week-3 board needs. 4 and 5 land when they're right, not when
 they run.
+
+Two tickets came out of slice 1 and are not in the numbered list above: **002** (the
+mutation harness runs 33 of 89 tests, so its score measures itself) and **003** (what
+replacement should mean in-season — brainstorm after item 2's parity check, before any
+long-lived golden is pinned).
 
 ## Triage rule
 (1) `kind: defect` — a price, config, or board a Tuesday decision depends on that is
