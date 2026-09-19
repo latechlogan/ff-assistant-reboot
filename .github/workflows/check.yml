@@ -1,0 +1,40 @@
+name: check
+
+# CI runs the check command and nothing else (docs/trust.md). Local is the source of
+# truth — the pre-push hook runs the same `pnpm check` — and this is confirmation.
+# The repo is public, so Actions minutes are not a constraint.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # gitleaks scans history, so a shallow clone would scan almost nothing.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install gitleaks
+        run: |
+          VERSION=8.30.2
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # No DATA_ROOT here: the private data repo is not checked out, and nothing in
+      # the check command needs it. The privacy scan falls back to the published
+      # hashes in privacy-hashes.json, which is the check that matters in CI.
+      - run: pnpm check
