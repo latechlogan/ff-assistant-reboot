@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 
 import path from "node:path";
 import { z } from "zod";
 import type { AsOf } from "../../core/ports.ts";
+import { PRICED_POSITIONS } from "../../core/types.ts";
 
 /**
  * The data root and the as-of file rules (docs/data-model.md).
@@ -42,6 +43,13 @@ const LeagueEntrySchema = z.object({
    * to be one, which would price a two-a-week room on a half-speed curve.
    */
   chopsPerWeek: z.number().int().positive().optional(),
+  /**
+   * Positions nobody bids real money on, priced at the league's floor with their
+   * dollars redistributed to the rest. A house judgment about the room, not a Sleeper
+   * fact — and a measured one: across 23 completed 2025 guillotine rooms the top
+   * weekly bids were RB 32, WR 22, QB 9, TE 6, and no kickers at all.
+   */
+  floorPositions: z.array(z.enum(PRICED_POSITIONS)).optional(),
 });
 
 const LeaguesFileSchema = z.object({

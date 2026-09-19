@@ -116,6 +116,7 @@ async function main(): Promise<void> {
     weekly,
     throughWeek: LAST_NFL_WEEK,
     ...(entry.chopsPerWeek === undefined ? {} : { chopsPerWeek: entry.chopsPerWeek }),
+    ...(entry.floorPositions === undefined ? {} : { floorPositions: entry.floorPositions }),
   });
   logger.log("debug", "board.built", {
     rows: board.rows.length,
@@ -176,6 +177,12 @@ function print(
     console.log(
       `\n${hidden > 0 ? `… ${hidden} more above replacement, and ` : "… "}` +
         `${diagnostics.belowReplacement} below it, not printed (--all prints every available player)`,
+    );
+  }
+  if (diagnostics.floorPositions.length > 0) {
+    console.log(
+      `\n${diagnostics.floorPositions.join(", ")} priced at the floor: real points, no real market ` +
+        `(23 guillotine rooms, 2025 — the top weekly bids were RB, WR, QB and TE, never a K).`,
     );
   }
   // Said plainly, every run: what a dollar buys on average over the rest of the season.

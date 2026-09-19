@@ -133,3 +133,61 @@ describe("the board the CLI prints", () => {
     expect(weights?.[1] ?? 1).toBeLessThan(1); // every later week is discounted
   });
 });
+
+describe("positions with no real market", () => {
+  test("REG 2026-09-18 — a floor position is priced at the floor and takes none of the pool", () => {
+    const config = deriveLeagueConfig(leagueFixture());
+    const index = buildPlayerIndex(playersFixture());
+    const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week: 2 });
+    const weekly: WeeklyPoints[] = projectionsFixture()
+      .filter((row) => index.has(row.player_id))
+      .map((row) => ({
+        playerId: row.player_id,
+        week: row.week,
+        points: scoreStatLine(row.stats, config.scoring),
+      }));
+    const args = { config, index, state, weekly, throughWeek: THROUGH_WEEK, chopsPerWeek: 1 };
+
+    const priced = buildWaiverBoard(args);
+    const floored = buildWaiverBoard({ ...args, floorPositions: ["K"] });
+
+    const kickers = floored.rows.filter((row) => row.position === "K");
+    expect(kickers.length).toBeGreaterThan(0); // still listed: their points are real
+    for (const kicker of kickers) {
+      expect(kicker.value).toBe(config.waiver.minBid ?? 0); // the floor, and nothing more
+      expect(kicker.vorp).toBeGreaterThan(0); // the VORP shown is still the true one
+    }
+    // Their dollars did not vanish: with kickers out of the supply, a dollar buys
+    // less VORP, so everyone who is actually biddable is worth more.
+    const before = priced.diagnostics.economy?.availableVorp ?? 0;
+    const after = floored.diagnostics.economy?.availableVorp ?? 0;
+    expect(after).toBeLessThan(before);
+    expect(floored.diagnostics.floorPositions).toEqual(["K"]);
+  });
+
+  test("REG 2026-09-18 — the board sorts by dollars where there are dollars, so a floored position cannot top it", () => {
+    const config = deriveLeagueConfig(leagueFixture());
+    const index = buildPlayerIndex(playersFixture());
+    const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week: 2 });
+    const weekly: WeeklyPoints[] = projectionsFixture()
+      .filter((row) => index.has(row.player_id))
+      .map((row) => ({
+        playerId: row.player_id,
+        week: row.week,
+        points: scoreStatLine(row.stats, config.scoring),
+      }));
+
+    const board = buildWaiverBoard({
+      config,
+      index,
+      state,
+      weekly,
+      throughWeek: THROUGH_WEEK,
+      chopsPerWeek: 1,
+      floorPositions: ["K"],
+    });
+
+    const values = board.rows.map((row) => row.value ?? 0);
+    expect([...values].sort((a, b) => b - a)).toEqual(values);
+  });
+});

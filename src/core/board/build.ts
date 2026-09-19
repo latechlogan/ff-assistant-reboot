@@ -32,6 +32,8 @@ export type BoardDiagnostics = {
   readonly availablePool: number;
   readonly replacement: Record<Position, number>;
   readonly survivalWeights: readonly number[] | null;
+  /** Positions priced at the floor rather than out of the pool. */
+  readonly floorPositions: readonly Position[];
   readonly economy: {
     readonly pool: number;
     readonly distributable: number;
@@ -63,8 +65,11 @@ export function buildWaiverBoard(args: {
   throughWeek: number;
   /** Chops per week, from the league registry. Required for a guillotine room. */
   chopsPerWeek?: number;
+  /** Positions priced at the floor, their dollars redistributed. From the registry. */
+  floorPositions?: readonly Position[];
 }): WaiverBoard {
   const { config, index, state, weekly, throughWeek, chopsPerWeek } = args;
+  const floorPositions = args.floorPositions ?? [];
   const fromWeek = state.week;
   const weeksRemaining = throughWeek - fromWeek + 1;
 
@@ -98,7 +103,25 @@ export function buildWaiverBoard(args: {
     return vorp(points.get(playerId) ?? 0, replacement[player.position]);
   };
 
-  const availableVorp = new Map(state.availableIds.map((id) => [id, vorpOf(id)]));
+  /**
+   * A floor position is one nobody bids real money on — kickers, in both of Logan's
+   * rooms. Their VORP is real (one kicker does outscore another), but the market for
+   * them is not: a room with 15 teams rosters 15 of ~32 kickers, so replacement is
+   * shallow and they would otherwise take the top of the board. Measured across 23
+   * guillotine rooms in 2025: the top weekly bids were RB, WR, QB and TE, never a K.
+   *
+   * So they are excluded from the economy on both sides — they neither consume the
+   * pool nor count toward the supply it is spread over — and price at the floor. Their
+   * VORP is still shown, because it is true.
+   */
+  const isFloorPosition = (playerId: string): boolean => {
+    const player = index.get(playerId);
+    return player !== undefined && floorPositions.includes(player.position);
+  };
+  const vorpOfPriced = (playerId: string): number =>
+    isFloorPosition(playerId) ? 0 : vorpOf(playerId);
+
+  const availableVorp = new Map(state.availableIds.map((id) => [id, vorpOfPriced(id)]));
 
   const allocation =
     state.faabPool === null
@@ -107,7 +130,7 @@ export function buildWaiverBoard(args: {
           availableVorp,
           rosteredVorpByTeam: state.rosters
             .filter((roster) => !roster.eliminated)
-            .map((roster) => roster.playerIds.reduce((sum, id) => sum + vorpOf(id), 0)),
+            .map((roster) => roster.playerIds.reduce((sum, id) => sum + vorpOfPriced(id), 0)),
           pool: state.faabPool,
           floor: config.waiver.minBid ?? 0,
           // Every remaining chop releases a whole roster into the pool. The season
@@ -127,13 +150,18 @@ export function buildWaiverBoard(args: {
         playerId,
         position: player.position,
         points: points.get(playerId) ?? 0,
-        vorp: availableVorp.get(playerId) ?? 0,
+        // The shown VORP is the real one, even where the dollars are floored.
+        vorp: vorpOf(playerId),
         value: allocation?.values.get(playerId) ?? null,
       };
     })
-    // By VORP, best first — value is monotone in it, so this is the same order with
-    // or without dollars. The player id breaks ties, so two runs cannot disagree.
-    .sort((a, b) => b.vorp - a.vorp || a.playerId.localeCompare(b.playerId));
+    // By value where there is money, because a floored position can out-VORP a
+    // player who is actually worth bidding on; by VORP where there is none. The
+    // player id breaks ties, so two runs cannot disagree about order.
+    .sort(
+      (a, b) =>
+        (b.value ?? 0) - (a.value ?? 0) || b.vorp - a.vorp || a.playerId.localeCompare(b.playerId),
+    );
 
   const claimable = rows.filter((row) => row.vorp > 0);
 
@@ -148,6 +176,7 @@ export function buildWaiverBoard(args: {
       availablePool: state.availableIds.length,
       replacement,
       survivalWeights: weights,
+      floorPositions,
       economy: allocation?.diagnostics ?? null,
       belowReplacement: rows.length - claimable.length,
     },
