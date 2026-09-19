@@ -17,7 +17,7 @@ import type { LeagueConfig, PlayerIndex, Position } from "../types.ts";
  *    starter still sets the bar for what a waiver claim is worth.
  *  - A position with no players left below the starter cut has replacement 0.
  */
-export function replacementLevels(args: {
+export function replacementLevels(_args: {
   points: ReadonlyMap<string, number>;
   index: PlayerIndex;
   config: LeagueConfig;
@@ -28,6 +28,6 @@ export function replacementLevels(args: {
 }
 
 /** VORP for one player: his points above his position's replacement level, floored at nothing. */
-export function vorp(points: number, replacement: number): number {
+export function vorp(_points: number, _replacement: number): number {
   throw new Error("not implemented");
 }

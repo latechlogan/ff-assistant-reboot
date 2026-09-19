@@ -31,7 +31,7 @@ export type Allocation = {
   };
 };
 
-export function allocateFaab(args: {
+export function allocateFaab(_args: {
   /** VORP for the available players being priced. */
   availableVorp: ReadonlyMap<string, number>;
   /** Σ VORP held by each live roster, one entry per live team. */

@@ -1,5 +1,5 @@
 {
-  "_comment": "Mechanical checks, so REVIEW.md never has to ask about them (docs/trust.md, principle: mechanical vs judgment). The `[ -f package.json ] || exit 0` guards are no-ops once slice 1 lands; before that they keep a code-less repo from failing every session. A Stop hook only blocks finishing when it exits 2, hence `|| exit 2`. If `pnpm check` ever passes ~10s, move tests to /vet and pre-push and leave format/lint/typecheck here.",
+  "_comment": "Stop redirects stdout to stderr because pnpm prints failures on stdout, and hook feedback only surfaces stderr — without it a failing check reports as 'No stderr output'. Mechanical checks, so REVIEW.md never has to ask about them (docs/trust.md, principle: mechanical vs judgment). The `[ -f package.json ] || exit 0` guards are no-ops once slice 1 lands; before that they keep a code-less repo from failing every session. A Stop hook only blocks finishing when it exits 2, hence `|| exit 2`. If `pnpm check` ever passes ~10s, move tests to /vet and pre-push and leave format/lint/typecheck here.",
   "hooks": {
     "SessionStart": [
       {
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f package.json ] || exit 0; pnpm check || exit 2"
+            "command": "[ -f package.json ] || exit 0; pnpm check 1>&2 || exit 2"
           }
         ]
       }

@@ -13,7 +13,7 @@
  *    live teams than remaining weeks is normal (16 teams over 17 weeks); the reverse
  *    is a contradiction and must raise rather than clamp silently.
  */
-export function survivalWeights(args: {
+export function survivalWeights(_args: {
   liveTeams: number;
   weeksRemaining: number;
   chopsPerWeek: number;

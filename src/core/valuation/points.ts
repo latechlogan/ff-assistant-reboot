@@ -13,7 +13,7 @@ import type { WeeklyPoints } from "../types.ts";
  *  - Without weights (a league that is not a guillotine), the sum is unweighted.
  *  - Never blended with a season-long projection: the two are on different scales.
  */
-export function restOfSeasonPoints(args: {
+export function restOfSeasonPoints(_args: {
   weekly: readonly WeeklyPoints[];
   fromWeek: number;
   throughWeek: number;

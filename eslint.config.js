@@ -24,6 +24,16 @@ export default tseslint.config(
     },
   },
   {
+    rules: {
+      // A leading underscore marks a parameter that is deliberately unused —
+      // every stub signature, and every callback that ignores an argument.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+    },
+  },
+  {
     files: ["src/core/**/*.ts"],
     ignores: ["src/core/**/*.test.ts"],
     rules: {

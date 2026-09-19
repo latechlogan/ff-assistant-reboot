@@ -33,7 +33,7 @@ export type RosterPayload = {
  *    leaves the economy with it. Under rolling waivers there is no currency: every
  *    roster's remaining FAAB and the pool are null, never an invented number.
  */
-export function summarizeLeagueState(args: {
+export function summarizeLeagueState(_args: {
   rosters: readonly RosterPayload[];
   index: PlayerIndex;
   config: LeagueConfig;
