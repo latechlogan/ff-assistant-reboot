@@ -1,5 +1,5 @@
 ---
-status: open
+status: in-progress
 kind: defect
 created: 2026-09-22
 ---

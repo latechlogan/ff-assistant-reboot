@@ -19,6 +19,18 @@ A ticket is where something surfaced now gets parked for later with its context 
 
 `blocked` and `deferred` both mean "not now," but only `blocked` has a person to chase. Keep them apart.
 
+The "still needs attention?" column is not advisory: `pnpm criteria` checks every ticket whose status is not `done` or `dropped`, and prints the ones it skipped with their status. Leave a finished ticket at `open` and its criteria get checked; leave an unfinished one at `done` and they silently never are, which is how ticket 008 shipped unchecked.
+
+## How criteria trace
+
+A ticket's criteria are numbered `AC1…ACn` under `## Done looks like`, and the tests that prove them are named for the pair — the ticket's own number, then the criterion:
+
+```ts
+test("005 AC1 — `eliminated: 1` is chopped; the key being absent means alive", …)
+```
+
+`pnpm criteria` matches one against the other and exits non-zero if a criterion has no test, or if a test names a ticket or an AC that does not exist. The ticket number is what makes it a check rather than a coincidence; see `docs/trust.md`.
+
 **The list is closed because other workspaces read `status` without knowing this repo.** A seventh word invented here is one only this repo understands. If one is genuinely needed, it's a change to the shared shape and is made in the workspace-scaffold repo, not here.
 
 ## Kind

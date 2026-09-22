@@ -18,19 +18,42 @@ Everything below exists to break that loop.
 Every **ticket** (`tickets/NNN-slug.md`) carries a `## Done looks like` section of
 numbered, checkable statements, **approved by Logan before implementation starts**.
 
-Tests are named after the criterion they prove:
+Tests are named after the criterion they prove **and the ticket it belongs to** —
+three digits, a space, the AC id, an em dash:
 
 ```ts
-test("AC3 — value column sums to the distributable pool over available rows only", …)
+test("001 AC7 — value column sums to the distributable pool over available rows only", …)
+//    ^^^ the ticket
 ```
+
+The ticket number is not decoration. Without it, ticket 009's AC4 was satisfied by
+ticket 001's test about bye weeks, and any ticket's AC1 satisfied every ticket's AC1
+(ticket 011). Grep for one ticket's coverage with `grep -rn '"005 AC' src test`.
 
 A test that traces to no criterion is either a regression guard for a logged learning
 (say so in the test name: `REG 2026-09-15 — bye rows carry no gp field`) or a candidate
 for deletion.
 
-`pnpm criteria` matches the AC IDs in the current ticket against test names and fails
-if a criterion has no test. Traceability is a check, not an intention. It runs in
-`/vet`, not in `pnpm check`, because it is scoped to the ticket in flight.
+`pnpm criteria` matches each ticket's AC ids against the tests named for **that**
+ticket, and exits non-zero if a criterion has no test, if a test names a ticket or an
+AC that does not exist, or if an `in-progress` ticket has no criteria at all. It is a
+gate: it fails loudly or it is worthless.
+
+- `pnpm criteria` checks every ticket that is not `done` or `dropped`, and prints what
+  it skipped, by name and status. A gate that silently checks nothing is worse than one
+  that fails — ticket 008 went unchecked for exactly that reason.
+- `pnpm criteria tickets/NNN-*.md` checks those tickets whatever their status. This is
+  the scoped form `/vet` uses for the ticket in flight.
+
+It runs in `/vet`, not in `pnpm check`, because the default form reports on work that
+has not been started yet — an untested criterion on an `open` ticket is news, not a
+broken build. Its own behaviour is tested in `test/criteria.test.ts`, against fixture
+tickets in a temp directory rather than against this repo's state.
+
+A criterion no test can reach — a lint rule, a check against the private data repo —
+says so in the ticket in parentheses: `(proved by \`pnpm check\`)`, `(proved by hand
+2026-09-22: …)`. It passes, and the run prints the annotation every time, so a reviewer
+can argue with the claim.
 
 ## Who writes the tests
 
@@ -120,7 +143,10 @@ why the reviewer is a subagent rather than a prompt in the same session.
 
 When the scaffold writes this project's `/vet`, its body should:
 
-1. Run `pnpm criteria` first — an acceptance criterion with no test is a stop.
+1. Run `pnpm criteria tickets/NNN-*.md` for the ticket in flight first — an acceptance
+   criterion with no test named for **that** ticket is a stop. Run the bare
+   `pnpm criteria` too, for the rest of the board; untested criteria on tickets nobody
+   has started are context, not a stop.
 2. Run `pnpm mutate` when the diff touches `src/core/**`; report surviving mutants.
 3. Dispatch the `reviewer` subagent with: the current ticket file, `git diff main`, and
    the paths to `docs/trust.md` and `REVIEW.md`.

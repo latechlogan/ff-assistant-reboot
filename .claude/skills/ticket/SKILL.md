@@ -35,9 +35,9 @@ docs/brief.md for scope — and any DECISIONS.md line that constrains it.]
 
 ## Done looks like
 [Numbered acceptance criteria, AC1…ACn, each a checkable statement. Tests are named
-after these, `pnpm criteria` checks that each has one, and Logan approves them BEFORE
-implementation starts. If a criterion can't be stated as something observable, the
-ticket isn't ready — keep narrowing.]
+`NNN ACn — …` for THIS ticket's number, `pnpm criteria` checks that each criterion has
+one, and Logan approves them BEFORE implementation starts. If a criterion can't be
+stated as something observable, the ticket isn't ready — keep narrowing.]
 
 ## Boundary
 [Constraints: the must-not-bend rules from CLAUDE.md that apply, anything ask-first

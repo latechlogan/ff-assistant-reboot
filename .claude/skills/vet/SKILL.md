@@ -9,8 +9,11 @@ Run the mechanical checks that have no hook behind them, then dispatch the indep
 reviewer, then report. Do not review the diff yourself in place of the reviewer — its
 separate context is the point.
 
-1. **Criteria coverage:** run `pnpm criteria`. An acceptance criterion in the current
-   ticket with no test named after it is a stop — say so before going further.
+1. **Criteria coverage:** run `pnpm criteria tickets/NNN-*.md` for the ticket in
+   flight. An acceptance criterion with no test named for **that ticket**
+   (`NNN ACn — …`) is a stop — say so before going further. Then run the bare
+   `pnpm criteria`, which covers every ticket that is not `done` or `dropped`: untested
+   criteria on work nobody has started are context for the report, not a stop.
 2. **Mutation score:** when the diff touches `src/core/**`, run `pnpm mutate` and carry
    the score and any surviving mutants into the report. Skip it otherwise and say so.
 3. **Dispatch the `reviewer` subagent** with: the current ticket file, `git diff main`,
