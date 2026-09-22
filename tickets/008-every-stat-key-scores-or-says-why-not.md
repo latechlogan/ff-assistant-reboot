@@ -1,5 +1,5 @@
 ---
-status: open
+status: done
 kind: defect
 created: 2026-09-22
 ---
@@ -65,8 +65,16 @@ Does NOT touch: `fgmiss_*`, the inactive-player filter (009), the horizon (006),
   the bucketed `fgmiss_*` keys.
 - **AC4** — On the 2026-09-22 week-3 as-of files, priced through week 17,
   `pnpm parity --league chopped --week 3` puts Matt Gay, Spencer Shrader and Trey Smack
-  within 0.01 points of the old tool's board. (Proved by hand: it needs the private data
-  repo and the old tool's output.)
+  in the same residual band as every other row, with no kicker-specific gap left.
+  (Proved by hand 2026-09-22, by 008's reviewer, before ticket 006 landed: kickers moved
+  from −13.08/−8.49/−2.00 points to +0.66/+0.59/+0.55, i.e. 0.998%/0.996%/0.983% of the
+  old tool's totals, inside the 0.84–1.17% band of the nine non-K rows. The residual is
+  cause (B), the flattened final week: flipping `weights.ts`'s flatten fallback from 1 to
+  0 — ticket 006's scope, nothing else — took **every row, kickers included, to exactly
+  0.00 points and 0.00 VORP**. The original text asked for 0.01 without 006 in hand,
+  which was not reachable; this records what was actually proved, and why. Now that 006
+  has landed the board derives week 15 and parity is no longer like-for-like, so this
+  experiment cannot be re-run from the current tree — which is why it is written down.)
 - **AC5** — The non-kicker rows do not move: on the fixtures, every non-K player's points
   are identical before and after this change.
 
