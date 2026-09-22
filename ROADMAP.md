@@ -1,42 +1,41 @@
 # Roadmap
 
-Last updated: 2026-09-18 (slice 1 complete, vetted) <!-- /wrap refreshes this; if this date is more than ~2 weeks old, treat the goal as suspect and ask before optimizing for it -->
+Last updated: 2026-09-22 (parity proved; four defects found and fixed; the week-3 board was read for real) <!-- /wrap refreshes this; if this date is more than ~2 weeks old, treat the goal as suspect and ask before optimizing for it -->
 
 ## Current goal
 Replace the 2026 tool's waiver board with one Logan trusts and can reason about: for
 the chopped (guillotine) league, every available player with positive VORP priced in
 FAAB dollars for the rest of the season, beside a measured range for what winning him
-will actually cost. We'll know it works when a Tuesday run reproduces the old tool's
-value column on a real week, the numbers are identical across re-runs, and Logan uses
-the board for a real waiver period. Target: the week-3 board, Tuesday 2026-09-22. The
-old `ff-assistant` keeps running Tuesdays until then and is deleted only after the new
-board has been used for real.
+will actually cost. **Parity is proved and the old tool's job is done** (2026-09-22): on
+the same week-3 inputs the rewrite reproduced its value column within ~$1, and every
+difference traced to a named cause rather than to the ported math. The board was read
+for a real waiver period on 2026-09-22 — the first time. What remains before the old
+`ff-assistant` is deleted: the money side of the economy (007), and a Tuesday where the
+board is used end to end with its own frozen record behind it. Next target: the week-4
+board, Tuesday 2026-09-29.
 
 ## This cycle's focus
-1. ~~**Walking skeleton** — chopped league, one week, end to end~~ — done 2026-09-18
-   (ticket 001, vetted). 89 tests; the core's tests were written from the approved
-   criteria by a separate agent before any implementation existed. Ran live against
-   both leagues. The reviewer caught a bug the whole suite missed — a floor reserve
-   larger than the pool priced the best player at negative dollars — now refused.
-   Kickers price at the floor (ticket 003 holds the deeper question).
-2. **Freeze and prove** — the `Board` artifact with `schemaVersion` and diagnostics; the
-   one-time parity check against `../ff-assistant-data/archive/2026-waiver-boards/`;
-   our own board pinned as the golden test.
-3. **Standard league** — the same board minus every dollar column. Proves the format
-   difference is a seam, not a fork.
-4. **Crawl and measure** — the 2025 bid corpus and the `BidCurve` artifact with its
-   provenance, reviewed by Logan before it prices anything. 2026 rooms held back as a
-   validation set.
-5. **Bid range, Logan's balance, room spend pace** — the last on trial, kept or cut
-   after a few real Tuesdays.
+1. ~~**Walking skeleton**~~ — done 2026-09-18 (ticket 001).
+2. **Freeze and prove** — ~~the one-time parity check~~ done 2026-09-22 (the parity half
+   of ticket 004; the result is in DECISIONS.md and the old tool is no longer needed for
+   it). The `Board` artifact is **built and reviewed on branch `ticket-004-freeze`**,
+   with three must-fixes outstanding — see the ticket. The golden stays unpinned until
+   003 is decided.
+3. **Standard league** — blocked on a stale payload: its as-of file predates
+   `schemaVersion`, so `pnpm waivers --league standard` refuses until someone re-fetches
+   it with `--refresh`. Deliberately not done while this morning's files were parity
+   evidence; that evidence is now banked, so it is free to do.
+4. **Crawl and measure** — the chop-unspent half is **measured** (23 rooms, 377 chopped
+   rosters, 2026-09-22) and sits unreviewed in `../ff-assistant-data/measured/`. The bid
+   corpus for the *range* is still to do.
+5. **Bid range, Logan's balance, room spend pace** — unchanged, still on trial.
 
-Items 1–3 are what the week-3 board needs. 4 and 5 land when they're right, not when
-they run.
-
-Two tickets came out of slice 1 and are not in the numbered list above: **002** (the
-mutation harness runs 33 of 89 tests, so its score measures itself) and **003** (what
-replacement should mean in-season — brainstorm after item 2's parity check, before any
-long-lived golden is pinned).
+Four defects were found and fixed today, all by comparing against the old tool or by
+reviewing what the comparison turned up: **005** (a chopped roster read as live),
+**006** (the season priced three weeks past its end), **008** (every 50+ yard field goal
+scoring zero, silently), **009** (1,081 inactive players in the index). Two gates were
+found hollow: **011** (criteria matched across tickets; fixed, on a branch) and **002**
+(the mutation harness, still open).
 
 ## Triage rule
 (1) `kind: defect` — a price, config, or board a Tuesday decision depends on that is

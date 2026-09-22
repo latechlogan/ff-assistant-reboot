@@ -67,3 +67,26 @@ touches every test file — worth doing in one pass, on its own, so the diff is 
 2. Implement the ticket-scoped matching against fixture tickets first, so the gate is
    proved before the rename.
 3. Rename existing tests in one mechanical pass. Report what AC5 turns up.
+
+## Review findings, 2026-09-22 — one policy call left
+
+Built and reviewed on branch **`ticket-011-criteria`**. The convention is
+`NNN ACn — text`. The reviewer proved the rename mechanical (12 files byte-identical
+modulo the name literals) and reproduced the original 001/009 collision failing.
+`pnpm check`: 145 tests. **The must-fix is already applied** (eada239): a named path that
+is no ticket now exits 1 instead of reporting that every ticket is settled.
+
+**Open, for Logan:** with AC2 + AC3 as approved the default `pnpm criteria` is
+permanently red — 19 criteria across 002, 004 and 007 — and `/vet` is told to read past
+it, which is warn-and-continue moved into prose. The reviewer's proposal, better than the
+"fail only on in-progress" one it replaces: **fail for partial coverage or an
+`in-progress` ticket; a ticket with zero coverage across all its criteria is unstarted
+work, so list it and stay green.** The 008 case was a partially-covered ticket, which is
+exactly the signal a red wall would bury. This amends AC3.
+
+Two follow-ups the review found, neither in scope here: a criterion is still satisfied by
+a test that never runs (`describe.skip` around a failing test passes the gate — the "and
+that it ran at all" half of this ticket's own Job line), and the gate cannot check that a
+test proves what its label claims, which `docs/trust.md` should say out loud rather than
+leaving the gate looking stronger than it is. AC5's test also narrows its population to
+exclude 007 rather than asserting 007 is listed.
