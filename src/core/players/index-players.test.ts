@@ -89,6 +89,9 @@ describe("who gets into the index", () => {
       // Sleeper sends `active` on every player today, but a field we rely on going
       // missing must not silently empty the board. Absence means active.
       flagless: payload({ player_id: "flagless", position: "WR" }),
+      // Null is absence, not false. `if (!player.active)` would read it as inactive and
+      // drop a real player; the schema allows null, so the distinction is pinned here.
+      nulled: payload({ player_id: "nulled", position: "WR", active: null }),
       // Ticket 009's explicit non-goal: no team is not inactive. A free agent between
       // clubs is exactly the player a waiver board exists to price.
       freeAgent: payload({ player_id: "freeAgent", position: "RB", team: null, active: true }),
@@ -97,8 +100,9 @@ describe("who gets into the index", () => {
     expect(index.has("retired")).toBe(false);
     expect(index.has("playing")).toBe(true);
     expect(index.has("flagless")).toBe(true);
+    expect(index.has("nulled")).toBe(true);
     expect(index.has("freeAgent")).toBe(true);
-    expect(index.size).toBe(3);
+    expect(index.size).toBe(4);
   });
 });
 

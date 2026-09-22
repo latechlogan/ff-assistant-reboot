@@ -10,7 +10,7 @@
 | `crawl/` | Discovering public guillotine rooms and pulling their transactions, throttled | A starting league, limits | Raw crawled rooms and claims |
 | `store/` | Data-root paths, as-of file naming, reading and writing boards and curves | Paths, artifacts | Typed artifacts, `schemaVersion` enforced |
 | `config/` | Deriving a `League` from its own payload; **refusing an unsupported format by name** | Raw league payload, `leagues.json` | `League`, or a loud refusal |
-| `players/` | The player index (admitted on eligible fantasy positions) and name/ID matching; loud unmatched logging | Player map, external name rows | `PlayerIndex`, match results |
+| `players/` | The player index (players Sleeper calls active, admitted on eligible fantasy positions) and name/ID matching; loud unmatched logging | Player map, external name rows | `PlayerIndex`, match results |
 | `scoring/` | Scoring one stat line under one league's rules | Stat line, `League` | Points |
 | `rosters/` | Who is live vs. chopped, FAAB remaining per roster, and the available pool as the observed complement of rostered players | Roster payloads, `PlayerIndex` | `LeagueState` |
 | `survival/` | P(alive at week w), re-anchored to the current week | Live team count, weeks remaining, chop cadence | Weekly weights |
@@ -187,9 +187,9 @@ rule that only lives in a document is one that erodes; this one is a check.
   chopped; available pool size; replacement level per position; FAAB pool, chops
   remaining, season supply, dollars per VORP; rows kept vs. dropped with the dropped
   value accounted for.
-- **Always loud, at any verbosity:** unmatched players, a refused league format, a
-  board that fails its closed-economy assertion, and a curve older than the season it
-  is pricing.
+- **Always loud, at any verbosity:** unmatched players, a player skipped as inactive who
+  still carries projected points, a refused league format, a board that fails its
+  closed-economy assertion, and a curve older than the season it is pricing.
 
 ## Build order
 
