@@ -1,13 +1,21 @@
 import { describe, expect, test } from "vitest";
+import { leagueFixture, playersFixture, projectionsFixture } from "../../../test/load-fixtures.ts";
+import { buildPlayerIndex } from "../players/index-players.ts";
 import type { LogLevel, Logger } from "../ports.ts";
 import type { IndexedPlayer, PlayerIndex } from "../types.ts";
 import { scoreWeeklyRows, warnInactiveWithPoints } from "./weekly.ts";
 
 /**
+ * Ticket 001:
  * AC10 — unmatched projection rows are logged loudly, with counts.
  *
  * The point of testing the logging and not just the counting: the rule is that a
  * dropped player is never silent, and a rule nothing enforces is a comment.
+ *
+ * Ticket 008 (`AC3` below, written before the implementation): the same rule with a
+ * different subject. A stat key the league scores but the pipeline never counts, and a
+ * scoring rule that never matches a key, are both silent drops — and one of them did
+ * corrupt the K replacement level. Every run has to say so.
  */
 
 /** A recorder, written here rather than imported: src/core may not reach an adapter. */
@@ -162,5 +170,150 @@ describe("a skipped player who turns up with points", () => {
 
     expect(scored.inactiveWithPoints).toEqual([]);
     expect(scored.unmatched).toBe(1);
+  });
+});
+
+/**
+ * Ticket 008, AC3 — every run reports, once, two lists:
+ *
+ *   `unmatchedRules` — the league's own scoring rules that matched no stat key in the
+ *                      weeks it priced. `fgm_50_59` was on this list and nobody saw it.
+ *   `unmatchedStats` — stat keys carrying a NON-ZERO value that matched no rule.
+ *
+ * Scoring-irrelevant feed keys (`pts_*`, `adp_*`, `pos_adp_*`, `gp`) are excluded by
+ * name from `unmatchedStats`: they are market data and bookkeeping, not production, and
+ * a report that always names them is a report nobody reads.
+ *
+ * The core's job is to produce the lists and carry them out with the scored week; the
+ * CLI prints them once for the run, which is adapter wiring and tested there.
+ */
+describe("accounting for every stat key and every scoring rule", () => {
+  test("AC3 — a scored week reports the rules that matched nothing and the stat keys that matched nothing", () => {
+    const scored = scoreWeeklyRows({
+      rows: [
+        {
+          player_id: "known",
+          week: 3,
+          stats: {
+            rec: 5, // has a rule, matches → neither list
+            rec_yd: 50, // has a rule, matches → neither list
+            rec_tgt: 9, // non-zero, no rule → unmatchedStats
+            rush_40p: 0, // no rule, but zero → reported by neither
+            pts_ppr: 12.5, // excluded by name
+            pts_std: 12.5, // excluded by name
+            adp_dd_ppr: 999, // excluded by name
+            pos_adp_dd_ppr: 44, // excluded by name
+            gp: 1, // excluded by name
+          },
+        },
+      ],
+      index,
+      // `rec_td` is a rule this week's rows never exercise: the case the report exists for.
+      scoring: { rec: 1, rec_yd: 0.1, rec_td: 6 },
+    });
+
+    // 5 × 1 + 50 × 0.1 = 10, unchanged by any of this.
+    expect(scored.weekly).toEqual([{ playerId: "known", week: 3, points: 10 }]);
+
+    expect(scored.unmatchedRules).toEqual(["rec_td"]);
+    expect(scored.unmatchedStats).toEqual(["rec_tgt"]);
+  });
+
+  test("AC3 — the lists are deduped and cover every week and row in the call, not just the first", () => {
+    const scored = scoreWeeklyRows({
+      rows: [
+        { player_id: "known", week: 3, stats: { rec: 1, rec_tgt: 2 } },
+        { player_id: "known", week: 4, stats: { rec_yd: 10, rec_tgt: 3, rec_fd: 1 } },
+      ],
+      index,
+      scoring: { rec: 1, rec_yd: 0.1, rec_td: 6 },
+    });
+
+    // `rec_tgt` appears in both rows and is named once. `rec_fd` appears only in the
+    // second, and a report built from `rows[0]` alone would miss it.
+    expect(scored.unmatchedStats).toEqual(["rec_fd", "rec_tgt"]);
+    // `rec` matched in week 3 and `rec_yd` in week 4, so neither is unmatched for the
+    // call even though each matched in only one of the two weeks.
+    expect(scored.unmatchedRules).toEqual(["rec_td"]);
+  });
+
+  test("AC3 — a bridged key counts as matched on both sides, so the report does not cry wolf", () => {
+    const scored = scoreWeeklyRows({
+      rows: [{ player_id: "known", week: 3, stats: { fgm_50p: 0.36 } }],
+      index,
+      scoring: { fgm_50_59: 5, fgm_60p: 6 },
+    });
+
+    // 0.36 × 5 = 1.8, via the bridge.
+    expect(scored.weekly[0]?.points).toBeCloseTo(1.8, 10);
+    // The stat scored, so it is not an unmatched stat key…
+    expect(scored.unmatchedStats).toEqual([]);
+    // …and the rule it scored through is not an unmatched rule. `fgm_60p` still is:
+    // no feed key reaches it, which is exactly what the report is for.
+    expect(scored.unmatchedRules).toEqual(["fgm_60p"]);
+  });
+
+  test("AC3 — with no fgm_50_59 rule to bridge to, fgm_50p is reported rather than dropped", () => {
+    const scored = scoreWeeklyRows({
+      rows: [{ player_id: "known", week: 3, stats: { fgm_50p: 0.36 } }],
+      index,
+      scoring: { fgm_0_19: 3 },
+    });
+
+    // Nothing to translate into, so it scores 0 — but loudly, not silently. Inventing
+    // a rate here would be the fabrication the bridge is careful not to be.
+    expect(scored.weekly[0]?.points).toBe(0);
+    expect(scored.unmatchedStats).toEqual(["fgm_50p"]);
+    expect(scored.unmatchedRules).toEqual(["fgm_0_19"]);
+  });
+
+  test("AC3 — on the fixtures the report names the fgmiss family and nothing scoring-irrelevant", () => {
+    const scored = scoreWeeklyRows({
+      rows: projectionsFixture().map((row) => ({
+        player_id: row.player_id,
+        week: row.week,
+        stats: row.stats,
+      })),
+      index: buildPlayerIndex(playersFixture()),
+      scoring: leagueFixture().scoring_settings,
+    });
+
+    // The ticket's own example, in the shape the fixtures carry it: the league scores a
+    // generic `fgmiss` at −1 and the feed reports misses bucketed. Nobody counts them,
+    // so both tools slightly overvalue kickers — deliberately out of scope here, and
+    // the report is what makes that a known debt rather than an accident.
+    expect(scored.unmatchedRules).toContain("fgmiss");
+    expect(scored.unmatchedStats).toContain("fgmiss_30_39");
+    expect(scored.unmatchedStats).toContain("fgmiss_40_49");
+
+    // The week-2 fixture carries no `fgm_50p`, so the two long made-buckets have no key
+    // to match — the silence that cost Shrader 1.8 points a week, now said out loud.
+    expect(scored.unmatchedRules).toContain("fgm_50_59");
+    expect(scored.unmatchedRules).toContain("fgm_60p");
+    // The kicker totals the buckets already cover, and the D/ST rules no fixture row
+    // exercises, land on the lists too: the report claims coverage, not relevance.
+    expect(scored.unmatchedStats).toContain("fga");
+    expect(scored.unmatchedRules).toContain("sack");
+
+    // Nothing that DID score is named. `fgm_40_49` weighted 13 kicker rows; `rec_yd`
+    // nearly every skill row.
+    expect(scored.unmatchedRules).not.toContain("fgm_40_49");
+    expect(scored.unmatchedRules).not.toContain("rec_yd");
+    expect(scored.unmatchedStats).not.toContain("rec_yd");
+
+    // Excluded by name, though every fixture row carries all five.
+    for (const noise of ["pts_ppr", "pts_std", "pts_half_ppr", "adp_dd_ppr", "pos_adp_dd_ppr"]) {
+      expect(scored.unmatchedStats).not.toContain(noise);
+    }
+    expect(scored.unmatchedStats).not.toContain("gp");
+
+    // Zero-valued keys are not named either. `pass_int_td` and `def_fum_td` have no
+    // rule in this league and appear on fixture rows only ever as 0.
+    expect(scored.unmatchedStats).not.toContain("pass_int_td");
+    expect(scored.unmatchedStats).not.toContain("def_fum_td");
+
+    // Sorted and deduped, so two runs cannot print the same report in two orders.
+    expect(scored.unmatchedRules).toEqual([...new Set(scored.unmatchedRules)].sort());
+    expect(scored.unmatchedStats).toEqual([...new Set(scored.unmatchedStats)].sort());
   });
 });
