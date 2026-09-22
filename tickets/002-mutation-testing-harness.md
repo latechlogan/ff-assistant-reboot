@@ -36,6 +36,17 @@ Likely suspects, untested: Node's type-stripping of `.ts` imports inside Stryker
 sandbox; the `.ts` extension in relative imports; `perTest` coverage analysis needing
 a different vitest setup; a version mismatch between Stryker 10 and Vitest 5.
 
+- **New evidence, 2026-09-22 (ticket 005's review):** a scoped run
+  `npx stryker run --mutate src/core/rosters/state.ts` scored 66.67% (36 killed, 18
+  survived), and most of the survivors were in `assertChopCadence`, including a mutant
+  that empties the whole function body. The reviewer applied three of them by hand to a
+  scratch copy (`if (false)` on the mismatch test, `format === "guillotine"`,
+  `week + 1`), and plain vitest failed the AC3 tests every time. So Stryker reports
+  mutants as surviving that the suite actually kills. `src/core/rosters/` is also
+  outside the `mutate` scope in `stryker.config.json`. Two survivors in that run are
+  real, both in older code: `state.ts` `config.waiver.kind === "faab"` → `true`, and
+  `roster.players ?? []` given a non-empty default.
+
 ## Scope
 Touches: `stryker.config.json`, possibly `vitest.config.ts`, possibly a
 Stryker/Vitest version pin. Does NOT touch `src/**` — if the harness needs source

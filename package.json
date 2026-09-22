@@ -19,7 +19,8 @@
     "privacy-scan": "node scripts/privacy-scan.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "waivers": "node src/adapters/cli/waivers.ts"
+    "waivers": "node src/adapters/cli/waivers.ts",
+    "parity": "node scripts/parity.ts"
   },
   "dependencies": {
     "zod": "4.6.5"
