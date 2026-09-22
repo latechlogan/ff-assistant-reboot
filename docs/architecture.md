@@ -17,14 +17,16 @@
 | `valuation/` | Replacement level, VORP, rest-of-season points, and the FAAB allocation over the season's supply | Weekly points, `LeagueState`, weights | Priced rows |
 | `bids/measure/` | Turning the crawl corpus into a measured `BidCurve`; runs offline and rarely | Bid observations, historical projections | `BidCurve` artifact |
 | `bids/price/` | Mapping a row's quality to a bid range from the curve | `BidCurve`, priced rows | Ranges |
-| `board/` | Assembling rows and diagnostics into a `Board`; freezing it | Priced rows, ranges, `LeagueState` | `Board` artifact |
+| `board/` (core) | Assembling rows and diagnostics into a `Board`; the artifact's schema and the identity it must close | Priced rows, ranges, `LeagueState` | `Board` artifact |
+| `claims/` | Whether a week's waiver claims have already run, from observed transactions only | That week's transactions | Cleared or not |
+| `board/` (adapter) | Freezing: only the current week, and nothing once that week's claims have cleared | `Board`, the store, a fresh transactions fetch | What happened — froze, overwrote, past week, or cleared |
 | `cli/` | Flags, orchestration, table rendering, exit codes | argv | Terminal output |
 | `obs/` | Structured logging and the debug trace | Events from every module | stderr |
 
 **Source layout.** The boundary is a directory, so the rule is greppable and
-enforceable: `src/core/**` (scoring, survival, valuation, bids/price, board, and the
-pure parts of config, players, rosters) and `src/adapters/**` (sleeper, crawl, store,
-cli, obs). Ports are declared in `src/core/ports.ts`.
+enforceable: `src/core/**` (scoring, survival, valuation, bids/price, board, claims,
+and the pure parts of config, players, rosters) and `src/adapters/**` (sleeper, crawl,
+store, board, cli, obs). Ports are declared in `src/core/ports.ts`.
 
 ## Containers
 
@@ -66,7 +68,7 @@ sequenceDiagram
     U->>CLI: pnpm waivers --league chopped [--refresh]
     CLI->>ST: read leagues.json, newest as-of payloads
     alt --refresh, or a payload is missing
-        CLI->>SL: fetch state, league, rosters, transactions, weekly projections
+        CLI->>SL: fetch state, league, rosters, weekly projections
         SL->>ST: write new as-of files (never overwrite)
     end
     CLI->>C: League + payloads + BidCurve
@@ -78,8 +80,15 @@ sequenceDiagram
     C->>C: FAAB value over the season's supply
     C->>C: bid range per row from the curve
     C-->>CLI: Board (rows + diagnostics)
-    CLI->>ST: freeze boards/<season>/wk<NN>-<league>.json
     CLI-->>U: table — positive-VORP rows, value, bid range, balance, pace
+    opt the current week
+        CLI->>SL: fetch this week's transactions, always fresh
+        alt no waiver claim has cleared
+            CLI->>ST: freeze boards/<season>/wk<NN>-<league>.json (FROZE / OVERWROTE)
+        else claims cleared
+            CLI-->>U: REFUSED (a board exists, exit 2) or NOT FROZEN (none yet)
+        end
+    end
 ```
 
 ### When the bid curve is measured (offline, occasional)

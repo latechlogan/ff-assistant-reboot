@@ -204,22 +204,32 @@ board twice offline from its recorded `inputs` and got the frozen file's own sha
    `reserve + distributable × availableVorp / supply`, every term in the file, closing to
    1e-13. The reviewer checked the algebra independently and agrees it is the same claim
    corrected. Amend AC4 here, add a DECISIONS line, then it is met.
-2. **The `reserve` term is never asserted non-zero.** Both rooms run a $0 floor, so
+2. ~~**The `reserve` term is never asserted non-zero.**~~ Done 2026-09-22: `sampleBoard` has a
+   $2 floor ($6 reserve); deleting `reserve +` now fails three tests, one named for AC4.
+   Original finding: Both rooms run a $0 floor, so
    deleting `reserve +` passes every test and the live board. Fix the test data: give
    `store.test.ts`'s `sampleBoard` a non-zero floor (`pool: 100, distributable: 94,
    dropped.valueSum: 6`, availablePool 3).
-3. **AC6's refusal has no test and has never executed.** Both halves either side are
+3. ~~**AC6's refusal has no test and has never executed.**~~ Done 2026-09-22: `freeze()` is
+   `src/adapters/board/freeze.ts`, returns an outcome instead of printing or exiting, and
+   all four branches are tested against a real store and a stub feed. It has still never
+   run live on a current week: the first will be week 4. Original finding: Both halves either side are
    tested; the wiring in the CLI's unexported `freeze()` is not, and week 3 had no claims
    so only the accepted "nobody claimed" gap was observed. Extract `freeze()` to
    `src/adapters/board/freeze.ts` taking `{store, source, exit}` and test three branches
    with a stub source: cleared → refuses and writes nothing; not cleared → OVERWROTE; not
    the current week → no fetch.
 
-Should-fix, same review: `leg` on the transactions payload is parsed and documented as
+Should-fix pulled in (Logan, 2026-09-22): **a first freeze is now guarded too.** Once
+the week's claims have cleared, nothing is written: an existing board is REFUSED (exit
+2), and a first run prints the board with NOT FROZEN (exit 0), so no post-claims board
+can become the week's record. `docs/architecture.md` now has the `claims/` and adapter
+`board/` rows and the guard in the Tuesday sequence.
+
+Remaining should-fixes, same review, not blocking: `leg` on the transactions payload is parsed and documented as
 the week cross-check but never checked; a *first* freeze is unguarded, so a 4am first run
 after claims clear writes a post-claims record and then locks it; the identity does not
 assert the population it closes over (`rows + dropped.rowCount === availablePool`); the
 floor is not recorded in the economy, so a reader cannot tell a $0 room from a $5 one; a
 failed transactions fetch exits with a stack trace rather than a sentence; an OVERWROTE
-records nothing about the evidence that permitted it; `docs/architecture.md` has no
-`claims/` row and its Tuesday sequence no longer matches the code.
+records nothing about the evidence that permitted it;

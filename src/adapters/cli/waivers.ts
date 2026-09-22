@@ -1,7 +1,6 @@
 import { parseArgs } from "node:util";
 import { BoardSchemaError, boardArtifact } from "../../core/board/artifact.ts";
 import { buildWaiverBoard } from "../../core/board/build.ts";
-import { claimsHaveCleared } from "../../core/claims/cleared.ts";
 import { deriveLeagueConfig } from "../../core/config/derive.ts";
 import { buildPlayerIndex } from "../../core/players/index-players.ts";
 import {
@@ -19,10 +18,11 @@ import {
   type PlayerIndex,
   type WeeklyPoints,
 } from "../../core/types.ts";
+import { freeze, type FreezeOutcome } from "../board/freeze.ts";
 import { createLogger } from "../obs/logger.ts";
 import { SleeperClient } from "../sleeper/client.ts";
 import { SleeperSource } from "../sleeper/sleeper.ts";
-import { BoardLockedError, DataRootError, Store, type LeagueEntry } from "../store/store.ts";
+import { BoardLockedError, DataRootError, Store } from "../store/store.ts";
 
 /**
  * The Tuesday board (docs/architecture.md, "When Logan runs the Tuesday board").
@@ -186,76 +186,6 @@ async function main(): Promise<void> {
   // The table is the answer; the file is the record. Freezing comes last so that a
   // refusal to overwrite still leaves the board on screen — the numbers were never
   // the thing in doubt, only whether they may replace a record already acted on.
-  await freeze({
-    board,
-    index,
-    season,
-    week,
-    currentWeek: state.data.week,
-    entry,
-    inputs: files,
-    store,
-    source,
-  });
-}
-
-/**
- * Write this week's board to the data repo (tickets/004, AC1 and AC6).
- *
- * Two rules, and both are about not destroying a record:
- *
- *   - Only the CURRENT week is frozen. `--week 2` is a look back, and re-pricing a
- *     past week today with today's projections would overwrite the record of what was
- *     actually known on the Tuesday it mattered.
- *   - An existing board may be replaced only while that week's claims are still
- *     pending. Once the waiver run has processed them, the board describes a decision
- *     that has already been acted on, and the run refuses and exits non-zero.
- */
-async function freeze(args: {
-  board: ReturnType<typeof buildWaiverBoard>;
-  index: PlayerIndex;
-  season: string;
-  week: number;
-  currentWeek: number;
-  entry: LeagueEntry;
-  inputs: readonly string[];
-  store: Store;
-  source: SleeperSource;
-}): Promise<void> {
-  const { board, index, season, week, currentWeek, entry, inputs, store, source } = args;
-
-  if (week !== currentWeek) {
-    console.log(
-      `not frozen: week ${week} is not the current week (${currentWeek}). ` +
-        `A past week's board is a record of what was known then, and this run is not it.\n`,
-    );
-    return;
-  }
-
-  const key = { season, week, leagueKey: entry.key };
-  const alreadyFrozen = store.hasBoard(key);
-
-  if (alreadyFrozen) {
-    // Asked fresh, every time. A cached copy pulled before the waiver run would say
-    // "not cleared" for the rest of the week, which is the one answer that lets a
-    // record be destroyed. A failed fetch fails the run rather than guessing.
-    const transactions = await source.transactions(season, entry.key, entry.leagueId, week, {
-      refresh: true,
-      requireFresh: true,
-    });
-    if (claimsHaveCleared(transactions.data)) {
-      logger.log("error", "board.locked", {
-        file: store.boardPath(key),
-        transactions: transactions.file,
-      });
-      console.error(
-        `\nREFUSED to overwrite ${store.boardPath(key)}: week ${week}'s waiver claims have ` +
-          `already cleared, so that board is the record of a decision that has been acted on.\n`,
-      );
-      process.exit(2);
-    }
-  }
-
   const artifact = boardArtifact({
     board,
     index,
@@ -274,11 +204,54 @@ async function freeze(args: {
      * priced from it, and naming a file whose timestamp differs between two runs
      * would make the record's own inputs non-reproducible.
      */
-    inputs,
+    inputs: files,
   });
+  const outcome = await freeze({
+    artifact,
+    currentWeek: state.data.week,
+    leagueId: entry.leagueId,
+    store,
+    source,
+  });
+  report(outcome);
+}
 
-  const written = store.writeBoard(artifact, { overwrite: alreadyFrozen });
-  console.log(`${written.overwrote ? "OVERWROTE" : "FROZE"} ${written.file}\n`);
+/** Say what the freeze did. Only a refusal to overwrite is a failed run (AC6). */
+function report(outcome: FreezeOutcome): void {
+  switch (outcome.kind) {
+    case "froze":
+      console.log(`FROZE ${outcome.file}\n`);
+      return;
+    case "overwrote":
+      console.log(`OVERWROTE ${outcome.file}\n`);
+      return;
+    case "past-week":
+      console.log(
+        `not frozen: week ${outcome.week} is not the current week (${outcome.currentWeek}). ` +
+          `A past week's board is a record of what was known then, and this run is not it.\n`,
+      );
+      return;
+    case "cleared":
+      logger.log(outcome.existing ? "error" : "warn", "board.locked", {
+        file: outcome.file,
+        existing: outcome.existing,
+        transactions: outcome.transactions,
+      });
+      if (outcome.existing) {
+        console.error(
+          `\nREFUSED to overwrite ${outcome.file}: this week's waiver claims have already ` +
+            `cleared, so that board is the record of a decision that has been acted on.\n`,
+        );
+        process.exit(2);
+      }
+      // Not a failure — the board above is still right for looking at — but the week
+      // has no record, and a post-claims one would be a record of the wrong moment.
+      console.log(
+        `NOT FROZEN ${outcome.file}: this week's waiver claims had already cleared before ` +
+          `any board was frozen, so these rosters are after the decision, not before it.\n`,
+      );
+      return;
+  }
 }
 
 function print(
