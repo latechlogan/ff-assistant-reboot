@@ -164,16 +164,19 @@ function sampleBoard(overrides: Partial<Board> = {}): Board {
       replacement: { QB: 10, RB: 9, WR: 8, TE: 7, K: 6 },
       survivalWeights: [1, 0.9],
       floorPositions: ["K"],
+      // A $2 floor over 3 available players reserves $6, so `reserve` is a real term
+      // in the identity: 20.8 (row) + 4 (two dropped rows at the floor) = 6 + 94 × 20/100.
+      // With a $0 floor, deleting `reserve +` from the check would pass unnoticed.
       economy: {
         pool: 100,
-        distributable: 100,
+        distributable: 94,
         availableVorp: 20,
         rosteredVorpPerTeam: 40,
         chopsRemaining: 2,
         supply: 100,
-        dollarsPerVorp: 1,
+        dollarsPerVorp: 0.94,
       },
-      dropped: { rowCount: 2, valueSum: 0 },
+      dropped: { rowCount: 2, valueSum: 4 },
     },
     rows: [
       {
@@ -183,7 +186,7 @@ function sampleBoard(overrides: Partial<Board> = {}): Board {
         position: "RB",
         points: 100,
         vorp: 20,
-        value: 20,
+        value: 20.8,
       },
     ],
     ...overrides,
@@ -294,13 +297,20 @@ describe("frozen boards", () => {
       path.join(root, file),
       JSON.stringify({
         ...board,
-        rows: [{ ...(board.rows[0] as Board["rows"][number]), value: 19 }],
+        rows: [{ ...(board.rows[0] as Board["rows"][number]), value: 19.8 }],
       }),
     );
 
     expect(() => store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toThrow(
       /econom/i,
     );
+  });
+
+  test("AC4 — the floor's reserve is part of what closes, so a room with a floor loads", () => {
+    // sampleBoard reserves $6; without the reserve term the identity is off by exactly that.
+    store.writeBoard(sampleBoard());
+
+    expect(() => store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" })).not.toThrow();
   });
 
   test("AC4 — a league with no FAAB has no economy to close, and loads anyway", () => {
