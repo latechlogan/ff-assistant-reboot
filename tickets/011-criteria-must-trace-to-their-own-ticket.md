@@ -48,7 +48,12 @@ touches every test file — worth doing in one pass, on its own, so the diff is 
   the default invocation, and the run prints which tickets it checked and which it
   skipped, by name and status.
 - **AC3** — An AC with no matching test fails the run with a non-zero exit, naming the
-  ticket, the criterion and its text.
+  ticket, the criterion and its text — for every **started** ticket: one that is
+  `in-progress`, has at least one test named for it, or was named on the command line.
+  A ticket with none of those is unstarted work: the default run lists it as unstarted
+  and stays green. *(Amended 2026-09-22, approved by Logan: as first written the default
+  run was permanently red on unstarted tickets, and the partial coverage that let 008
+  through would have been buried in that red.)*
 - **AC4** — A criterion annotated `(proved by …)` still passes, and the run prints the
   annotation so a reviewer can argue with it.
 - **AC5** — Every existing ticket's criteria still trace after the rename: running the

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -184,6 +184,62 @@ describe("an untested criterion stops the run", () => {
   });
 });
 
+describe("started work must trace fully; unstarted work is listed, not failed", () => {
+  /**
+   * Amended AC3 (Logan, 2026-09-22): a default run that failed on every unstarted
+   * ticket would be permanently red, and a permanently red gate is one people learn
+   * to read past. The case that actually shipped unchecked — 008 — was PARTIAL
+   * coverage, which is exactly what a wall of red would bury.
+   */
+  test("011 AC3 — an open ticket with no tests at all is listed as unstarted, and the run stays green", () => {
+    const root = fixtureRoot({
+      "050-later.md": ticket("open", "- **AC1** — first.\n- **AC2** — second."),
+    });
+
+    const { code, out } = runCriteria(root);
+
+    expect(code).toBe(0);
+    expect(out).toMatch(/050-later\.md[^\n]*open[^\n]*unstarted/);
+    expect(out).not.toContain("MISSING");
+  });
+
+  test("011 AC3 — an open ticket with some tests is started work, and every gap fails", () => {
+    const root = fixtureRoot(
+      { "051-half.md": ticket("open", "- **AC1** — has a test.\n- **AC2** — has none.") },
+      testNamed("051 AC1 — has a test"),
+    );
+
+    const { code, out } = runCriteria(root);
+
+    expect(code).toBe(1);
+    expect(out).toContain("051 AC2");
+    expect(out).toContain("has none");
+  });
+
+  test("011 AC3 — an in-progress ticket with no tests at all still fails: it is not unstarted", () => {
+    const root = fixtureRoot({
+      "052-busy.md": ticket("in-progress", "- **AC1** — being built."),
+    });
+
+    const { code, out } = runCriteria(root);
+
+    expect(code).toBe(1);
+    expect(out).toContain("052 AC1");
+  });
+
+  test("011 AC3 — a ticket named on the command line is held to every criterion, started or not", () => {
+    // /vet names the ticket in flight; there, "unstarted" is not an excuse.
+    const root = fixtureRoot({
+      "053-named.md": ticket("open", "- **AC1** — nothing yet."),
+    });
+
+    const { code, out } = runCriteria(root, [path.join(root, "tickets", "053-named.md")]);
+
+    expect(code).toBe(1);
+    expect(out).toContain("053 AC1");
+  });
+});
+
 describe("a criterion proved somewhere a test cannot reach", () => {
   test("011 AC4 — a `(proved by …)` criterion passes, and the annotation is printed", () => {
     const root = fixtureRoot({
@@ -219,15 +275,18 @@ describe("this repo's own criteria, after the rename", () => {
   /**
    * The one case that reads the real tree: every ticket with an implementation behind
    * it must trace to tests named for that ticket. Rename a test away from its ticket
-   * and this is what notices. Tickets 002, 004 and 007 are deliberately absent — they
-   * are not built, and ticket 011's AC5 asks for that to be said out loud, not hidden.
+   * and this is what notices. The population is every ticket whose status is `done`,
+   * read from the tickets themselves, so a ticket that closes joins it without anyone
+   * editing this test — and an unbuilt one is never quietly counted as traced.
    */
   test("011 AC5 — every done ticket's criteria trace to a test named for that ticket", () => {
     const ticketDir = path.join(REPO, "tickets");
     const done = readdirSync(ticketDir)
-      .filter((file) => /^(001|005|006|008|009)-.*\.md$/.test(file))
-      .map((file) => path.join(ticketDir, file));
-    expect(done).toHaveLength(5);
+      .filter((file) => /^\d{3}-.*\.md$/.test(file))
+      .map((file) => path.join(ticketDir, file))
+      .filter((file) => /^status:\s*done\s*$/m.test(readFileSync(file, "utf8")));
+    // 001, 004, 005, 006, 008, 009 at the time of writing; never fewer.
+    expect(done.length).toBeGreaterThanOrEqual(6);
 
     const { code, out } = runCriteria(REPO, done);
 

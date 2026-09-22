@@ -14,10 +14,17 @@
  * apart proves nothing.
  *
  * Three things are checked, and any of them failing exits non-zero:
- *   1. every criterion of every checked ticket has a test named `NNN ACn — …`
+ *   1. every criterion of every STARTED ticket has a test named `NNN ACn — …`
  *   2. no test names an `NNN ACn` that no ticket has — the copy-paste guard, since a
  *      wrong ticket number would otherwise go quietly uncounted
  *   3. a ticket that is `in-progress` has criteria at all
+ *
+ * "Started" means `in-progress`, or at least one test already named for the ticket. A
+ * ticket that is neither is unstarted work: the default run lists it and stays green,
+ * because a gate that is red on every ticket nobody has begun is one people learn to
+ * read past — and what shipped unchecked (008) was PARTIAL coverage, which that red
+ * wall would bury. A ticket named on the command line is always held to every
+ * criterion; that is the form /vet uses for the ticket in flight.
  *
  * A criterion the check command proves by existing — a lint rule, a scan — says so in
  * the ticket in parentheses: `(proved by \`pnpm check\`)`. So does one proved by hand
@@ -193,6 +200,16 @@ for (const { label, number, status, criteria } of checked) {
   }
 
   const proven = covered.get(number) ?? new Set<string>();
+  const started =
+    named.length > 0 || status === "in-progress" || criteria.some(({ id }) => proven.has(id));
+  const untested = criteria.filter(
+    ({ id, text }) => !proven.has(id) && !PROVED_ELSEWHERE.test(text),
+  );
+  if (!started && untested.length > 0) {
+    say(`criteria: ${label} (${status}) — unstarted: ${criteria.length} criteria, no tests yet`);
+    continue;
+  }
+
   let missing = 0;
 
   say(`criteria: ${label} (${status}) — ${criteria.length} criteria`);

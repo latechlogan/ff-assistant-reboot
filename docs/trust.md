@@ -35,9 +35,16 @@ A test that traces to no criterion is either a regression guard for a logged lea
 for deletion.
 
 `pnpm criteria` matches each ticket's AC ids against the tests named for **that**
-ticket, and exits non-zero if a criterion has no test, if a test names a ticket or an
-AC that does not exist, or if an `in-progress` ticket has no criteria at all. It is a
-gate: it fails loudly or it is worthless.
+ticket, and exits non-zero if a criterion of a **started** ticket has no test, if a test
+names a ticket or an AC that does not exist, or if an `in-progress` ticket has no
+criteria at all. Started means `in-progress`, at least one test already named for the
+ticket, or named on the command line; anything else is listed as unstarted and does not
+fail the run. Partial coverage always fails — that is the shape that let 008 through.
+It is a gate: it fails loudly or it is worthless.
+
+What it cannot see: whether a test proves what its name claims, or whether it ran at
+all (a `describe.skip` still counts — ticket 013). A name is a claim; the reviewer is
+what checks it.
 
 - `pnpm criteria` checks every ticket that is not `done` or `dropped`, and prints what
   it skipped, by name and status. A gate that silently checks nothing is worse than one
@@ -45,9 +52,9 @@ gate: it fails loudly or it is worthless.
 - `pnpm criteria tickets/NNN-*.md` checks those tickets whatever their status. This is
   the scoped form `/vet` uses for the ticket in flight.
 
-It runs in `/vet`, not in `pnpm check`, because the default form reports on work that
-has not been started yet — an untested criterion on an `open` ticket is news, not a
-broken build. Its own behaviour is tested in `test/criteria.test.ts`, against fixture
+It runs in `/vet`, not in `pnpm check`: a ticket whose tests are being written first is
+started and partially covered, so the gate is rightly red while that work is in flight,
+and the build should not be. Its own behaviour is tested in `test/criteria.test.ts`, against fixture
 tickets in a temp directory rather than against this repo's state.
 
 A criterion no test can reach — a lint rule, a check against the private data repo —
