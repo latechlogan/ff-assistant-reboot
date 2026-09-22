@@ -102,12 +102,12 @@ describe("the board the CLI prints", () => {
 
   test("AC5 — a chopped roster's players are priced as available", () => {
     const { index, result } = board();
-    const chopped = rostersFixture().find((r) => r.settings.eliminated === 1);
+    const chopped = rostersFixture().find((r) => r.settings.eliminated != null);
 
     expect(chopped).toBeDefined();
     // The fixture's chopped roster was emptied by Sleeper itself, so the assertion
     // that matters is the inverse: nobody on a LIVE roster is on the board.
-    const live = rostersFixture().filter((r) => r.settings.eliminated !== 1);
+    const live = rostersFixture().filter((r) => r.settings.eliminated == null);
     const owned = new Set(live.flatMap((r) => r.players ?? []));
     for (const row of result.rows) {
       expect(owned.has(row.playerId)).toBe(false);

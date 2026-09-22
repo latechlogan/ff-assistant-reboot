@@ -6,17 +6,18 @@ import {
   rostersFixture,
 } from "../../../test/load-fixtures.ts";
 import {
+  ChopCadenceError,
   PRICED_POSITIONS,
   type IndexedPlayer,
   type LeagueConfig,
   type PlayerIndex,
   type Position,
 } from "../types.ts";
-import { summarizeLeagueState, type RosterPayload } from "./state.ts";
+import { assertChopCadence, summarizeLeagueState, type RosterPayload } from "./state.ts";
 
 /**
- * AC5 — a roster with `settings.eliminated: 1` is excluded from live rosters and its
- * players are back in the available pool.
+ * AC5 — a roster with `settings.eliminated` set (it holds the chop week; ticket 005) is
+ * excluded from live rosters and its players are back in the available pool.
  * AC6 — the pool is the complement of the union of live rosters' players, reserve and
  * taxi, even when a roster holds more players than the shape allows.
  * AC7 — the FAAB pool this value is spread over is Σ remaining across LIVE rosters.
@@ -116,6 +117,106 @@ describe("who is live and who is chopped", () => {
     }
     // Only roster 1's 15 players are still owned: 86 − 15 = 71 available.
     expect(state.availableIds).toHaveLength(71);
+  });
+});
+
+/**
+ * Ticket 005. `eliminated` is the WEEK a roster was chopped, not a flag: the live week-3
+ * pull (2026-09-22) carried `2` and `1`. Reading it as `=== 1` priced the week-2 victim
+ * as a live team — and nothing complained, because its players were already released.
+ */
+describe("a chop is recorded as the week it happened", () => {
+  test("AC1 — any integer in `eliminated` means chopped; absent or null means alive", () => {
+    const rosters = rostersFixture();
+    rosterById(rosters, 2).settings.eliminated = 2;
+    rosterById(rosters, 1).settings.eliminated = null;
+
+    const state = summarizeLeagueState({
+      rosters,
+      index: fixtureIndex(),
+      config: fixtureConfig(),
+      week: 3,
+    });
+
+    expect(state.rosters.find((r) => r.rosterId === 2)?.eliminated).toBe(true);
+    expect(state.rosters.find((r) => r.rosterId === 12)?.eliminated).toBe(true);
+    expect(state.rosters.find((r) => r.rosterId === 1)?.eliminated).toBe(false);
+  });
+
+  test("AC2 — rosters chopped in weeks 1 and 2 are both out, players and money alike", () => {
+    const rosters = rostersFixture();
+    const chopped = rosterById(rosters, 2); // spent 24 before being chopped
+    chopped.settings.eliminated = 2;
+    const held = chopped.players ?? [];
+
+    const state = summarizeLeagueState({
+      rosters,
+      index: fixtureIndex(),
+      config: fixtureConfig(),
+      week: 3,
+    });
+
+    expect(state.liveTeams).toBe(1);
+    expect(state.choppedTeams).toBe(2);
+    for (const playerId of held) expect(state.availableIds).toContain(playerId);
+    // Only roster 1 is live: its 999 remaining, not roster 2's 976 on top.
+    expect(state.faabPool).toBe(BUDGET - 1);
+  });
+});
+
+describe("the live count must match the chop cadence", () => {
+  // The fixture is 3 of 16 rosters, so the count the check reads is set by hand: the
+  // question is only whether the check compares it to the cadence correctly.
+  const base = summarizeLeagueState({
+    rosters: rostersFixture(),
+    index: fixtureIndex(),
+    config: fixtureConfig(),
+    week: 3,
+  });
+  const teams = fixtureConfig().teams; // 16, from the payload
+
+  test("AC3 — a live count that matches the cadence passes", () => {
+    // Week 3 at one chop a week: chops after weeks 1 and 2, so 16 − 2 = 14.
+    expect(() =>
+      assertChopCadence({
+        config: fixtureConfig(),
+        state: { ...base, week: 3, liveTeams: teams - 2 },
+        chopsPerWeek: 1,
+      }),
+    ).not.toThrow();
+    // Two a week doubles the chops: 16 − 4 = 12.
+    expect(() =>
+      assertChopCadence({
+        config: fixtureConfig(),
+        state: { ...base, week: 3, liveTeams: teams - 4 },
+        chopsPerWeek: 2,
+      }),
+    ).not.toThrow();
+  });
+
+  test("AC3 — a live count off the cadence stops the run, naming both numbers and the week", () => {
+    // The 2026-09-22 failure exactly: 15 read as live where the cadence says 14.
+    const run = () =>
+      assertChopCadence({
+        config: fixtureConfig(),
+        state: { ...base, week: 3, liveTeams: teams - 1 },
+        chopsPerWeek: 1,
+      });
+
+    expect(run).toThrow(ChopCadenceError);
+    expect(run).toThrow(/15/);
+    expect(run).toThrow(/14/);
+    expect(run).toThrow(/week 3/);
+  });
+
+  test("AC3 — a league that is not a guillotine has no cadence to check", () => {
+    expect(() =>
+      assertChopCadence({
+        config: fixtureConfig({ format: "standard" }),
+        state: { ...base, liveTeams: teams },
+        chopsPerWeek: 1,
+      }),
+    ).not.toThrow();
   });
 });
 

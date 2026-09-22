@@ -47,7 +47,7 @@ describe("fixtures parse against the boundary schemas", () => {
 describe("fixtures keep the shapes that cost us in 2026", () => {
   test("a chopped roster is present, marked only by `eliminated`", () => {
     const rosters = RostersSchema.parse(read("rosters-guillotine.json"));
-    const chopped = rosters.filter((r) => r.settings.eliminated === 1);
+    const chopped = rosters.filter((r) => r.settings.eliminated != null);
 
     expect(chopped).toHaveLength(1);
     expect(chopped[0]?.owner_id).toBeTruthy(); // owner_id survives elimination — no signal
@@ -55,7 +55,7 @@ describe("fixtures keep the shapes that cost us in 2026", () => {
 
   test("live rosters carry no `eliminated` key at all, rather than a zero", () => {
     const rosters = RostersSchema.parse(read("rosters-guillotine.json"));
-    const live = rosters.filter((r) => r.settings.eliminated !== 1);
+    const live = rosters.filter((r) => r.settings.eliminated == null);
 
     expect(live.length).toBeGreaterThan(0);
     for (const roster of live) {

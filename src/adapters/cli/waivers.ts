@@ -3,8 +3,8 @@ import { buildWaiverBoard } from "../../core/board/build.ts";
 import { deriveLeagueConfig } from "../../core/config/derive.ts";
 import { buildPlayerIndex } from "../../core/players/index-players.ts";
 import { scoreWeeklyRows } from "../../core/projections/weekly.ts";
-import { summarizeLeagueState } from "../../core/rosters/state.ts";
-import { UnsupportedLeagueError, type WeeklyPoints } from "../../core/types.ts";
+import { assertChopCadence, summarizeLeagueState } from "../../core/rosters/state.ts";
+import { ChopCadenceError, UnsupportedLeagueError, type WeeklyPoints } from "../../core/types.ts";
 import { createLogger } from "../obs/logger.ts";
 import { SleeperClient } from "../sleeper/client.ts";
 import { SleeperSource } from "../sleeper/sleeper.ts";
@@ -38,6 +38,11 @@ try {
 } catch (error) {
   if (error instanceof UnsupportedLeagueError) {
     logger.log("error", "league.unsupported", { reason: error.reason });
+    console.error(`\n${error.message}\n`);
+    process.exit(2);
+  }
+  if (error instanceof ChopCadenceError) {
+    logger.log("error", "league.cadence", { message: error.message });
     console.error(`\n${error.message}\n`);
     process.exit(2);
   }
@@ -83,6 +88,11 @@ async function main(): Promise<void> {
     config,
     week,
   });
+  // A count that disagrees with the cadence means we are reading Sleeper wrong; the
+  // board would look fine and be off on every row. A missing cadence is refused below.
+  if (entry.chopsPerWeek !== undefined) {
+    assertChopCadence({ config, state: leagueState, chopsPerWeek: entry.chopsPerWeek });
+  }
   logger.log("debug", "rosters.summarized", {
     liveTeams: leagueState.liveTeams,
     choppedTeams: leagueState.choppedTeams,

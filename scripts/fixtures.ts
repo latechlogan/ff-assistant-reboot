@@ -60,9 +60,16 @@ const aliasOwner = (id: string | null | undefined): string | null => {
   return ownerAlias.get(id) ?? null;
 };
 
-/** Two live rosters and the chopped one: enough to test the pool, the union, and elimination. */
-const eliminated = rosters.data.filter((r) => r.settings.eliminated === 1);
-const live = rosters.data.filter((r) => r.settings.eliminated !== 1);
+/** Two live rosters and one chopped one (`eliminated` holds the chop week): enough to test the pool, the union, and elimination. */
+// The EARLIEST victim, so a regeneration later in the season keeps the same chopped
+// roster rather than whichever one Sleeper happens to list first.
+const eliminated = rosters.data
+  .filter((r) => r.settings.eliminated != null)
+  .sort(
+    (a, b) =>
+      (a.settings.eliminated ?? 0) - (b.settings.eliminated ?? 0) || a.roster_id - b.roster_id,
+  );
+const live = rosters.data.filter((r) => r.settings.eliminated == null);
 const keptRosters: Roster[] = [...live.slice(0, 2), ...eliminated.slice(0, 1)];
 
 const scrubRoster = (r: Roster) => ({

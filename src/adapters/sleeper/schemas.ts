@@ -43,9 +43,9 @@ export const LeagueSchema = z.looseObject({
 export type League = z.infer<typeof LeagueSchema>;
 
 /**
- * `eliminated` is present ONLY on chopped rosters — measured live 2026-09-18, where
- * 15 of 16 rosters had no such key and the chopped one had `eliminated: 1`. So it is
- * optional, and its absence means alive. `reserve` and `taxi` are null in leagues
+ * `eliminated` is present ONLY on chopped rosters, and holds the WEEK of the chop —
+ * `1` on 2026-09-18 (one chop so far), `2` and `1` on 2026-09-22. So it is optional,
+ * any integer means chopped, and its absence means alive. `reserve` and `taxi` are null in leagues
  * that have no such slots.
  */
 export const RosterSettingsSchema = z.looseObject({

@@ -92,6 +92,9 @@ export type PricedRow = {
   readonly value: number | null;
 };
 
+/** Raised when the live-team count disagrees with the room's chop cadence. */
+export class ChopCadenceError extends Error {}
+
 /** Raised when a league's settings describe a format this project does not model. */
 export class UnsupportedLeagueError extends Error {
   readonly reason: string;
