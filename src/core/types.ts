@@ -95,6 +95,28 @@ export type PricedRow = {
 /** Raised when the live-team count disagrees with the room's chop cadence. */
 export class ChopCadenceError extends Error {}
 
+/**
+ * Raised when a guillotine season is already decided: one team is left, so there is
+ * no week ahead worth pricing. Not an error in the inputs — the season is simply over,
+ * and the CLI reports it and exits 0.
+ */
+export class SeasonDecidedError extends Error {
+  /**
+   * The week the final chop fell in, `ceil((teams − 1) / chopsPerWeek)` over the
+   * league's own team count. It is a fact about the room, not about the run, so the
+   * same room reports the same week however late the command is run.
+   */
+  readonly decidedInWeek: number;
+
+  constructor(decidedInWeek: number) {
+    super(
+      `this season was decided in week ${decidedInWeek}: one team is left, and there is ` +
+        `no week after it worth pricing.`,
+    );
+    this.decidedInWeek = decidedInWeek;
+  }
+}
+
 /** Raised when a league's settings describe a format this project does not model. */
 export class UnsupportedLeagueError extends Error {
   readonly reason: string;

@@ -78,6 +78,11 @@ export function summarizeLeagueState(args: {
  *
  * Run it between the chop being played and being recorded (Sunday night to Monday
  * night) and it will also stop — correctly, since the room isn't settled yet.
+ *
+ * Once the season is decided the chopping stops, so the formula keeps subtracting past
+ * the end and reaches 0 while Sleeper still shows the one survivor. That is a decided
+ * season, not a room we are counting wrong: the floor is one live team, and the board
+ * raises `SeasonDecidedError` for it (tickets/006, AC4).
  */
 export function assertChopCadence(args: {
   config: LeagueConfig;
@@ -87,7 +92,7 @@ export function assertChopCadence(args: {
   const { config, state, chopsPerWeek } = args;
   if (config.format !== "guillotine") return;
 
-  const expected = config.teams - chopsPerWeek * (state.week - 1);
+  const expected = Math.max(1, config.teams - chopsPerWeek * (state.week - 1));
   if (state.liveTeams !== expected) {
     throw new ChopCadenceError(
       `week ${state.week}: Sleeper shows ${state.liveTeams} live rosters, but ${config.teams} ` +

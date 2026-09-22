@@ -182,10 +182,35 @@ describe("the board the CLI prints", () => {
   });
 
   test("REG 2026-09-18 — a guillotine board weights the weeks it is likely to be alive for", () => {
-    const { result } = board();
+    /**
+     * The committed fixture holds two live rosters, and since tickets/006 a two-team
+     * room in week 2 is decided that same week: one priced week, so there is no later
+     * week for the curve to discount. The guard is about the discount, not about the
+     * fixture's size, so the room is cloned up to a count that still has weeks ahead
+     * of it — the league's own `total_rosters`, never a number typed in here.
+     */
+    const config = deriveLeagueConfig(leagueFixture());
+    const index = buildPlayerIndex(playersFixture());
+    const template = rostersFixture().find((r) => r.settings.eliminated == null);
+    expect(template).toBeDefined();
+    const rosters = Array.from({ length: leagueFixture().total_rosters }, (_, i) => ({
+      ...(template as NonNullable<typeof template>),
+      roster_id: i + 1,
+    }));
+    const state = summarizeLeagueState({ rosters, index, config, week: 2 });
+
+    const result = buildWaiverBoard({
+      config,
+      index,
+      state,
+      weekly: [],
+      throughWeek: THROUGH_WEEK,
+      chopsPerWeek: 1,
+    });
 
     const weights = result.diagnostics.survivalWeights;
     expect(weights).not.toBeNull();
+    expect(weights?.length ?? 0).toBeGreaterThan(1); // the room has weeks ahead of it
     expect(weights?.[0]).toBe(1); // this week is certain
     expect(weights?.[1] ?? 1).toBeLessThan(1); // every later week is discounted
   });

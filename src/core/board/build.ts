@@ -1,7 +1,9 @@
 import { allocateFaab } from "../valuation/allocate.ts";
 import { restOfSeasonPoints } from "../valuation/points.ts";
 import { replacementLevels, vorp } from "../valuation/replacement.ts";
+import { lastMeaningfulWeek } from "../survival/last-meaningful-week.ts";
 import { survivalWeights } from "../survival/weights.ts";
+import { SeasonDecidedError } from "../types.ts";
 import type {
   LeagueConfig,
   LeagueState,
@@ -26,6 +28,10 @@ import type {
 
 export type BoardDiagnostics = {
   readonly week: number;
+  /**
+   * The last week actually priced. In a guillotine room that is the week of the final
+   * chop, which is usually earlier than the caller's NFL horizon.
+   */
   readonly throughWeek: number;
   readonly liveTeams: number;
   readonly choppedTeams: number;
@@ -61,7 +67,10 @@ export function buildWaiverBoard(args: {
   state: LeagueState;
   /** Scored weekly points for every player, keyed by absolute week. */
   weekly: readonly WeeklyPoints[];
-  /** The last week of the season being priced. */
+  /**
+   * The last week of the NFL schedule. A guillotine room may stop earlier than this —
+   * never later — because its season ends when one team is left.
+   */
   throughWeek: number;
   /** Chops per week, from the league registry. Required for a guillotine room. */
   chopsPerWeek?: number;
@@ -71,7 +80,6 @@ export function buildWaiverBoard(args: {
   const { config, index, state, weekly, throughWeek, chopsPerWeek } = args;
   const floorPositions = args.floorPositions ?? [];
   const fromWeek = state.week;
-  const weeksRemaining = throughWeek - fromWeek + 1;
 
   // A guillotine week is only worth what you are likely to be alive to collect. The
   // cadence is a fact about the room that Sleeper does not publish, so it is required
@@ -83,15 +91,39 @@ export function buildWaiverBoard(args: {
         `derived from Sleeper. Add it to leagues.json in the data repo.`,
     );
   }
-  const weights =
-    config.format === "guillotine" && chopsPerWeek !== undefined
-      ? survivalWeights({ liveTeams: state.liveTeams, weeksRemaining, chopsPerWeek })
-      : null;
+  const guillotine = config.format === "guillotine" && chopsPerWeek !== undefined;
+
+  /**
+   * A guillotine season ends when one team is left, so the last week worth pricing
+   * comes from the room's own live-team count and cadence — not from the schedule.
+   * A standard room has no cadence to derive one from and keeps the caller's horizon
+   * (its own is a separate question; tickets/006, Boundary).
+   */
+  const pricedThroughWeek = guillotine
+    ? lastMeaningfulWeek({
+        week: fromWeek,
+        liveTeams: state.liveTeams,
+        chopsPerWeek,
+        throughWeek,
+      })
+    : throughWeek;
+  const weeksRemaining = pricedThroughWeek - fromWeek + 1;
+
+  // With one team left the window is empty, and there is nothing here to price. Say so
+  // by type, before the curve is asked for: `survivalWeights` would throw a generic
+  // error that the CLI cannot tell apart from a real bug.
+  if (guillotine && weeksRemaining < 1) {
+    throw new SeasonDecidedError(Math.ceil((config.teams - 1) / chopsPerWeek));
+  }
+
+  const weights = guillotine
+    ? survivalWeights({ liveTeams: state.liveTeams, weeksRemaining, chopsPerWeek })
+    : null;
 
   const points = restOfSeasonPoints({
     weekly,
     fromWeek,
-    throughWeek,
+    throughWeek: pricedThroughWeek,
     ...(weights ? { weights } : {}),
   });
 
@@ -133,10 +165,20 @@ export function buildWaiverBoard(args: {
             .map((roster) => roster.playerIds.reduce((sum, id) => sum + vorpOfPriced(id), 0)),
           pool: state.faabPool,
           floor: config.waiver.minBid ?? 0,
-          // Every remaining chop releases a whole roster into the pool. The season
-          // ends with one survivor however fast the room chops, so the COUNT of
-          // remaining chops does not depend on the cadence — only their timing does.
-          chopsRemaining: config.format === "guillotine" ? state.liveTeams - 1 : 0,
+          /**
+           * A released roster is only worth buying if there is still a week left to
+           * play it in. The chops that qualify are the ones following the priced
+           * weeks before the last: `(last − week) × chopsPerWeek`. The final chop
+           * releases a roster nobody can use, and it is not counted.
+           *
+           * There is no `min(…, liveTeams − 1)` cap here, because it can never bind:
+           * without the `throughWeek` clamp the count is
+           * `(ceil((L−1)/c) − 1) × c ≤ (L − 1 + c − 1) − c = L − 2`, already below
+           * `L − 1`, and the clamp only makes it smaller. A guard no test can
+           * distinguish from its absence is a guard that hides a bug rather than
+           * catching one.
+           */
+          chopsRemaining: guillotine ? (pricedThroughWeek - fromWeek) * chopsPerWeek : 0,
         });
 
   const rows: PricedRow[] = state.availableIds
@@ -170,7 +212,7 @@ export function buildWaiverBoard(args: {
     everyRow: rows,
     diagnostics: {
       week: fromWeek,
-      throughWeek,
+      throughWeek: pricedThroughWeek,
       liveTeams: state.liveTeams,
       choppedTeams: state.choppedTeams,
       availablePool: state.availableIds.length,

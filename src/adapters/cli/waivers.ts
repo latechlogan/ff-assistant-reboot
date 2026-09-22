@@ -10,6 +10,7 @@ import {
 import { assertChopCadence, summarizeLeagueState } from "../../core/rosters/state.ts";
 import {
   ChopCadenceError,
+  SeasonDecidedError,
   UnsupportedLeagueError,
   type PlayerIndex,
   type WeeklyPoints,
@@ -49,6 +50,13 @@ try {
     logger.log("error", "league.unsupported", { reason: error.reason });
     console.error(`\n${error.message}\n`);
     process.exit(2);
+  }
+  // Not a failure: the season is over, so there is no board to print and nothing went
+  // wrong. Exit 0 and say which week decided it.
+  if (error instanceof SeasonDecidedError) {
+    logger.log("info", "league.decided", { decidedInWeek: error.decidedInWeek });
+    console.log(`\nseason decided in week ${error.decidedInWeek} — no board to price.\n`);
+    process.exit(0);
   }
   if (error instanceof ChopCadenceError) {
     logger.log("error", "league.cadence", { message: error.message });
@@ -222,10 +230,18 @@ function print(
   }
   // Said plainly, every run: what a dollar buys on average over the rest of the season.
   if (diagnostics.economy) {
+    // A survival curve is what makes a room a guillotine, and only a guillotine room
+    // has a week it gets decided in. Both numbers are the board's; the CLI does no
+    // arithmetic of its own.
+    const season =
+      diagnostics.survivalWeights === null
+        ? ""
+        : `\nseason decided in week ${diagnostics.throughWeek}: ` +
+          `${diagnostics.economy.chopsRemaining} release(s) left that a priced week can still use.`;
     console.log(
       `\nvalue = what he is worth · $${diagnostics.economy.dollarsPerVorp.toFixed(2)} per VORP ` +
-        `over a season supply of ${diagnostics.economy.supply.toFixed(0)} VORP ` +
-        `(${diagnostics.economy.chopsRemaining} chops still to come). ` +
+        `over a season supply of ${diagnostics.economy.supply.toFixed(0)} VORP.` +
+        season +
         `\nIt is not what he will cost — a bid range comes later.`,
     );
   }
