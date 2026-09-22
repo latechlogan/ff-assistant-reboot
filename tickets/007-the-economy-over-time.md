@@ -47,14 +47,22 @@ not medians** — we are summing dollars, and medians of ratios don't add up:
 | mean unspent | 1.00 | .958 | .778 | .745 | .721 | .673 | .471 | .225 | .227 | .170 | .132 | .044 | .103 | .025 | .023 |
 | n | 21 | 23 | 23 | 23 | 23 | 23 | 23 | 22 | 22 | 23 | 24 | 23 | 23 | 23 | 23 |
 
-Survivors (n=24) finish with a mean **1.8%** unspent (max 15.5%) — small, but it is money
-that never buys anything either, so the pool should not assume it will.
+Survivors finish with a mean **1.8%** unspent (median 0.55%, max 15.5%) — small, but it
+is money that never buys anything either, so the pool should not assume it will.
 
-Raw per-roster CSV and the scripts are in this session's scratchpad; the crawl is
-reproducible from `../ff-assistant-data/archive/guillotine-research-2025/crawl.mjs`
-(~1,500 read-only calls). **The CSV is not committed anywhere** — the first job below is
-to put the measurement somewhere durable, because a number nobody can re-derive is a
-number the board should not be priced on.
+Two corrections from re-deriving the table against the raw rows (2026-09-22): the weeks
+above cover **342** of the 377 chopped rosters — the other 35 were chopped in weeks 16–17
+in 17- and 18-team rooms, which a 16-team room can never reach, and the artifact keeps
+them. And the survivor count is 24 from 23 rooms because one room ends with two
+un-eliminated rosters; that room also supplies one of the three dropped rows.
+
+The artifact now exists, **uncommitted**, at `../ff-assistant-data/measured/`:
+`chop-unspent-v1.json` (schemaVersion 1, with sample, method, caveats and a shape
+review), `chop-unspent-v1-rows.csv` (the 404 raw rows) and `chop-unspent-v1-analyze.mjs`,
+which reproduces the JSON's numbers from the CSV exactly. The crawl itself needs Sleeper
+(~1,500 read-only calls); only the analysis step is reproducible from the repo alone.
+Logan reviews and accepts it before it prices anything (`docs/brief.md`), and the file
+says so in `provenance.reviewedBy`.
 
 ### What it comes to, on the 2026-09-22 week-3 inputs
 | | supply | pool | $/VORP | Hall |
