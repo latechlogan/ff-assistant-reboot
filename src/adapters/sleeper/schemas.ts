@@ -95,6 +95,12 @@ export const ProjectionsSchema = z.array(ProjectionRowSchema);
  * The player map, keyed by Sleeper player id. `fantasy_positions` is what the index
  * admits on — not `position`, which hides fullbacks, punters and Travis Hunter
  * (learned 2026-09-15; 76 real ids were invisible).
+ *
+ * `active` is present and boolean on all 12,228 players in the 2026-09-22 payload
+ * (9,421 true, 2,807 false), but it is `nullish` here on purpose: the index treats a
+ * missing flag as active, so a field Sleeper drops without notice must reach the core
+ * as `undefined` rather than fail the whole payload at the boundary. Every other
+ * field pricing depends on is strict; this one fails toward keeping a real player.
  */
 export const PlayerSchema = z.looseObject({
   player_id: z.string(),
@@ -104,6 +110,7 @@ export const PlayerSchema = z.looseObject({
   team: z.string().nullish(),
   position: z.string().nullish(),
   fantasy_positions: z.array(z.string()).nullish(),
+  active: z.boolean().nullish(),
   injury_status: z.string().nullish(),
   status: z.string().nullish(),
 });

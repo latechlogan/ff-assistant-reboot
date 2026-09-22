@@ -2,9 +2,18 @@ import { parseArgs } from "node:util";
 import { buildWaiverBoard } from "../../core/board/build.ts";
 import { deriveLeagueConfig } from "../../core/config/derive.ts";
 import { buildPlayerIndex } from "../../core/players/index-players.ts";
-import { scoreWeeklyRows } from "../../core/projections/weekly.ts";
+import {
+  scoreWeeklyRows,
+  warnInactiveWithPoints,
+  type InactiveWithPoints,
+} from "../../core/projections/weekly.ts";
 import { assertChopCadence, summarizeLeagueState } from "../../core/rosters/state.ts";
-import { ChopCadenceError, UnsupportedLeagueError, type WeeklyPoints } from "../../core/types.ts";
+import {
+  ChopCadenceError,
+  UnsupportedLeagueError,
+  type PlayerIndex,
+  type WeeklyPoints,
+} from "../../core/types.ts";
 import { createLogger } from "../obs/logger.ts";
 import { SleeperClient } from "../sleeper/client.ts";
 import { SleeperSource } from "../sleeper/sleeper.ts";
@@ -79,8 +88,8 @@ async function main(): Promise<void> {
   files.push(leaguePayload.file, rostersPayload.file, playersPayload.file);
 
   const config = deriveLeagueConfig(leaguePayload.data);
-  const index = buildPlayerIndex(playersPayload.data);
-  logger.log("debug", "players.indexed", { indexed: index.size });
+  const { index, inactive } = buildPlayerIndex(playersPayload.data);
+  logger.log("debug", "players.indexed", { indexed: index.size, skippedInactive: inactive.size });
 
   const leagueState = summarizeLeagueState({
     rosters: rostersPayload.data,
@@ -105,6 +114,7 @@ async function main(): Promise<void> {
   // own rules. One payload per week, each an as-of file.
   const weekly: WeeklyPoints[] = [];
   let unmatched = 0;
+  const inactiveWithPoints: InactiveWithPoints[] = [];
   for (let w = week; w <= LAST_NFL_WEEK; w++) {
     const projections = await source.weeklyProjections(season, w, policy);
     files.push(projections.file);
@@ -113,11 +123,15 @@ async function main(): Promise<void> {
       rows: projections.data,
       index,
       scoring: config.scoring,
+      inactive,
       logger,
     });
     weekly.push(...scored.weekly);
     unmatched += scored.unmatched;
+    inactiveWithPoints.push(...scored.inactiveWithPoints);
   }
+  // After the loop, so a player who scores in ten weeks is named once, not ten times.
+  warnInactiveWithPoints(inactiveWithPoints, logger);
 
   const board = buildWaiverBoard({
     config,
@@ -137,16 +151,24 @@ async function main(): Promise<void> {
     inputs: files,
   });
 
-  print(board, { index, config, leagueKey: entry.key, all: values.all });
+  print(board, {
+    index,
+    config,
+    leagueKey: entry.key,
+    all: values.all,
+    skippedInactive: inactive.size,
+  });
 }
 
 function print(
   board: ReturnType<typeof buildWaiverBoard>,
   opts: {
-    index: ReturnType<typeof buildPlayerIndex>;
+    index: PlayerIndex;
     config: ReturnType<typeof deriveLeagueConfig>;
     leagueKey: string;
     all: boolean;
+    /** Players Sleeper calls inactive, left out of the index (ticket 009). */
+    skippedInactive: number;
   },
 ): void {
   const { diagnostics } = board;
@@ -155,7 +177,10 @@ function print(
 
   const header = [
     `${opts.leagueKey} — week ${diagnostics.week}, ${diagnostics.liveTeams} teams live`,
-    `${diagnostics.availablePool} available, ${board.rows.length} above replacement`,
+    // The skipped count sits next to the pool it was taken out of, so the numbers
+    // below it are checkable rather than merely printed (ticket 009).
+    `${opts.index.size} indexed (${opts.skippedInactive} inactive skipped), ` +
+      `${diagnostics.availablePool} available, ${board.rows.length} above replacement`,
     money
       ? `$${Math.round(diagnostics.economy?.pool ?? 0)} FAAB left in the room`
       : "no FAAB currency — points and VORP only",

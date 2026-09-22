@@ -9,11 +9,21 @@ export type ProjectionRow = {
   stats: Record<string, number>;
 };
 
+/** A player skipped for being inactive who nonetheless scored in some week. */
+export type InactiveWithPoints = {
+  readonly playerId: string;
+  readonly name: string;
+  readonly week: number;
+  readonly points: number;
+};
+
 export type ScoredWeek = {
   readonly weekly: readonly WeeklyPoints[];
   readonly matched: number;
   /** Rows whose player id is in no index — a silent drop here corrupts replacement level. */
   readonly unmatched: number;
+  /** Rows belonging to a deliberately skipped inactive player that scored above zero. */
+  readonly inactiveWithPoints: readonly InactiveWithPoints[];
 };
 
 /**
@@ -27,14 +37,33 @@ export function scoreWeeklyRows(args: {
   rows: readonly ProjectionRow[];
   index: PlayerIndex;
   scoring: Readonly<Record<string, number>>;
+  /**
+   * Who the index skipped for `active: false`, from `buildPlayerIndex`. Supplying it
+   * keeps those rows out of the unmatched count — they were dropped knowingly, and
+   * blunting the "id we do not recognise" signal with 1,081 known ids would destroy
+   * it — and surfaces any that score, for `warnInactiveWithPoints`.
+   */
+  inactive?: ReadonlyMap<string, string>;
   logger?: Logger;
 }): ScoredWeek {
-  const { rows, index, scoring, logger } = args;
+  const { rows, index, scoring, inactive, logger } = args;
   const weekly: WeeklyPoints[] = [];
   const unmatchedIds: string[] = [];
+  const inactiveWithPoints: InactiveWithPoints[] = [];
 
   for (const row of rows) {
     if (!index.has(row.player_id)) {
+      const name = inactive?.get(row.player_id);
+      if (name !== undefined) {
+        const points = scoreStatLine(row.stats, scoring);
+        // Zero is the normal case and stays silent: a bye or an inactive arrives as
+        // ADP only, which scores exactly 0. Anything else means the flag we filtered
+        // on has stopped meaning what it meant, and a price would be wrong.
+        if (points !== 0) {
+          inactiveWithPoints.push({ playerId: row.player_id, name, week: row.week, points });
+        }
+        continue;
+      }
       unmatchedIds.push(row.player_id);
       continue;
     }
@@ -55,5 +84,39 @@ export function scoreWeeklyRows(args: {
     });
   }
 
-  return { weekly, matched: weekly.length, unmatched: unmatchedIds.length };
+  return { weekly, matched: weekly.length, unmatched: unmatchedIds.length, inactiveWithPoints };
+}
+
+/**
+ * Say, once per player per run, that a player we skipped for being inactive scored.
+ *
+ * This is ticket 009's safety valve rather than a thing that happens: today every one
+ * of the 1,081 skipped players is projected at zero, so this warns about nothing. It
+ * exists because the filter is a standing rule and `active` is Sleeper's field, not
+ * ours — the season it starts meaning something else, the run has to say so rather
+ * than quietly price a board short a real player.
+ *
+ * Called once with every week's findings, because the caller scores sixteen weeks and
+ * a player who scores in ten of them is one problem, not ten lines of noise.
+ */
+export function warnInactiveWithPoints(
+  found: readonly InactiveWithPoints[],
+  logger?: Logger,
+): number {
+  const seen = new Set<string>();
+
+  for (const player of found) {
+    if (seen.has(player.playerId)) continue;
+    seen.add(player.playerId);
+    // warn, not debug: this is loud at any verbosity by design.
+    logger?.log("warn", "players.inactive_with_points", {
+      playerId: player.playerId,
+      name: player.name,
+      week: player.week,
+      points: player.points,
+      note: "skipped as inactive, but Sleeper projects him points — he is missing from the board",
+    });
+  }
+
+  return seen.size;
 }

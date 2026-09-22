@@ -1,15 +1,16 @@
 import { describe, expect, test } from "vitest";
 import { buildWaiverBoard } from "../src/core/board/build.ts";
 import { deriveLeagueConfig } from "../src/core/config/derive.ts";
-import { buildPlayerIndex } from "../src/core/players/index-players.ts";
+import { buildPlayerIndex, type PlayerPayload } from "../src/core/players/index-players.ts";
 import { summarizeLeagueState } from "../src/core/rosters/state.ts";
 import { scoreStatLine } from "../src/core/scoring/score.ts";
-import type { WeeklyPoints } from "../src/core/types.ts";
+import { PRICED_POSITIONS, type WeeklyPoints } from "../src/core/types.ts";
 import {
   leagueFixture,
   playersFixture,
   projectionsFixture,
   rostersFixture,
+  type ProjectionFixtureRow,
 } from "./load-fixtures.ts";
 
 /**
@@ -22,14 +23,20 @@ import {
 
 const THROUGH_WEEK = 18;
 
-function board(week = 2) {
+/** Extra payload rows a test wants layered onto the fixtures before the board is built. */
+type Extra = {
+  players?: Record<string, PlayerPayload>;
+  rows?: ProjectionFixtureRow[];
+};
+
+function board(week = 2, extra: Extra = {}) {
   const config = deriveLeagueConfig(leagueFixture());
-  const index = buildPlayerIndex(playersFixture());
+  const { index } = buildPlayerIndex({ ...playersFixture(), ...extra.players });
   const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week });
 
   // The fixture holds one week of projections; every later week is simply absent,
   // which the pipeline must treat as zero rather than as a gap to fill.
-  const weekly: WeeklyPoints[] = projectionsFixture()
+  const weekly: WeeklyPoints[] = [...projectionsFixture(), ...(extra.rows ?? [])]
     .filter((row) => index.has(row.player_id))
     .map((row) => ({
       playerId: row.player_id,
@@ -54,10 +61,43 @@ function board(week = 2) {
   };
 }
 
+/**
+ * One `active: false` player per priced position, each with a projection big enough to
+ * top his position if he ever reached the index. The fixtures are machine-generated
+ * from real payloads (`pnpm fixtures`) and hold only active players, so the inactive
+ * case is layered on here rather than hand-edited into a file the generator rewrites.
+ */
+function inactiveRingers(): Extra {
+  const players: Record<string, PlayerPayload> = {};
+  const rows: ProjectionFixtureRow[] = [];
+
+  for (const position of PRICED_POSITIONS) {
+    const id = `retired_${position}`;
+    players[id] = {
+      player_id: id,
+      full_name: `Retired ${position}`,
+      position,
+      fantasy_positions: [position],
+      team: null,
+      active: false,
+    };
+    rows.push({
+      player_id: id,
+      week: 2,
+      season: "2026",
+      // A bag deliberately wide enough to score enormously under any of this league's
+      // settings, so no position's ringer can fail to displace a real starter.
+      stats: { pass_yd: 5000, pass_td: 60, rush_yd: 2000, rec: 200, rec_yd: 3000, fgm: 60 },
+    });
+  }
+
+  return { players, rows };
+}
+
 describe("the board the CLI prints", () => {
   test("AC2 — a guillotine board refuses to guess the chop cadence", () => {
     const config = deriveLeagueConfig(leagueFixture());
-    const index = buildPlayerIndex(playersFixture());
+    const { index } = buildPlayerIndex(playersFixture());
     const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week: 2 });
 
     // Sleeper publishes the format but not the cadence. Assuming one chop a week
@@ -124,6 +164,23 @@ describe("the board the CLI prints", () => {
     expect(result.diagnostics.availablePool).toBe(state.availableIds.length);
   });
 
+  test("AC4 — replacement levels do not move when inactive players are in the payload", () => {
+    // Every player in the fixture is `active: true`, so this board is byte-identical
+    // to the one built before ticket 009 existed. It is the "before".
+    const before = board().result.diagnostics.replacement;
+
+    // Now put a retired ringer at every priced position into the same payload, each
+    // projected to outscore the fixture's best. If the filter failed, they would be
+    // indexed, their points would rank above every starter, and every replacement
+    // level here would rise. That is what makes this assertion bite.
+    const after = board(2, inactiveRingers()).result.diagnostics.replacement;
+
+    expect(after).toEqual(before);
+    for (const position of PRICED_POSITIONS) {
+      expect(after[position]).toBe(before[position]); // to the last decimal
+    }
+  });
+
   test("REG 2026-09-18 — a guillotine board weights the weeks it is likely to be alive for", () => {
     const { result } = board();
 
@@ -137,7 +194,7 @@ describe("the board the CLI prints", () => {
 describe("positions with no real market", () => {
   test("REG 2026-09-18 — a floor position is priced at the floor and takes none of the pool", () => {
     const config = deriveLeagueConfig(leagueFixture());
-    const index = buildPlayerIndex(playersFixture());
+    const { index } = buildPlayerIndex(playersFixture());
     const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week: 2 });
     const weekly: WeeklyPoints[] = projectionsFixture()
       .filter((row) => index.has(row.player_id))
@@ -167,7 +224,7 @@ describe("positions with no real market", () => {
 
   test("REG 2026-09-18 — the board sorts by dollars where there are dollars, so a floored position cannot top it", () => {
     const config = deriveLeagueConfig(leagueFixture());
-    const index = buildPlayerIndex(playersFixture());
+    const { index } = buildPlayerIndex(playersFixture());
     const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week: 2 });
     const weekly: WeeklyPoints[] = projectionsFixture()
       .filter((row) => index.has(row.player_id))

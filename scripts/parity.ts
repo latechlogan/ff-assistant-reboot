@@ -18,7 +18,11 @@ import { parseArgs } from "node:util";
 import { buildWaiverBoard } from "../src/core/board/build.ts";
 import { deriveLeagueConfig } from "../src/core/config/derive.ts";
 import { buildPlayerIndex } from "../src/core/players/index-players.ts";
-import { scoreWeeklyRows } from "../src/core/projections/weekly.ts";
+import {
+  scoreWeeklyRows,
+  warnInactiveWithPoints,
+  type InactiveWithPoints,
+} from "../src/core/projections/weekly.ts";
 import { summarizeLeagueState } from "../src/core/rosters/state.ts";
 import type { WeeklyPoints } from "../src/core/types.ts";
 import { createLogger } from "../src/adapters/obs/logger.ts";
@@ -90,7 +94,7 @@ const rostersPayload = newest(`rosters-${entry.key}-wk${wk}`, (raw) => RostersSc
 const playersPayload = newest("players-nfl", (raw) => PlayerMapSchema.parse(raw));
 
 const config = deriveLeagueConfig(leaguePayload.data);
-const index = buildPlayerIndex(playersPayload.data);
+const { index, inactive } = buildPlayerIndex(playersPayload.data);
 const leagueState = summarizeLeagueState({
   rosters: rostersPayload.data,
   index,
@@ -99,6 +103,7 @@ const leagueState = summarizeLeagueState({
 });
 
 const weekly: WeeklyPoints[] = [];
+const inactiveWithPoints: InactiveWithPoints[] = [];
 const inputs = [state.file, leaguePayload.file, rostersPayload.file, playersPayload.file];
 for (let w = week; w <= OUR_LAST_NFL_WEEK; w++) {
   const projections = newest(`projections-wk${String(w).padStart(2, "0")}`, (raw) =>
@@ -109,10 +114,14 @@ for (let w = week; w <= OUR_LAST_NFL_WEEK; w++) {
     rows: projections.data,
     index,
     scoring: config.scoring,
+    inactive,
     logger,
   });
   weekly.push(...scored.weekly);
+  inactiveWithPoints.push(...scored.inactiveWithPoints);
 }
+// Ticket 009's safety valve: a skipped player who is projected points is named once.
+warnInactiveWithPoints(inactiveWithPoints, logger);
 
 function ourBoard(throughWeek: number) {
   return buildWaiverBoard({
