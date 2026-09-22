@@ -91,4 +91,26 @@ describe("the last week a chop still decides anything", () => {
     expect(last).toBeLessThan(17);
     expect(last).toBe(16); // week + ceil(0 / 1) − 1
   });
+
+  test("AC4 — a decided season has an empty priced window at any cadence, and the window is never negative-by-cadence", () => {
+    /**
+     * "Decided" is not a cadence-specific state: with one team left there is no chop
+     * to make, so `ceil(0 / chopsPerWeek)` is 0 whatever the room's speed, and the
+     * last meaningful week sits one week behind the current one. The window the
+     * caller would price, `last − week + 1`, is therefore 0 — never 1, which would
+     * quietly price a week that decides nothing, and never a value that changes with
+     * the cadence.
+     *
+     * This is the machine-readable precondition for the decided-season refusal at the
+     * board seam: the board must recognise an empty window rather than hand it to
+     * `survivalWeights`.
+     */
+    for (const chopsPerWeek of [1, 2, 3]) {
+      const week = 17;
+      const last = lastMeaningfulWeek({ week, liveTeams: 1, chopsPerWeek, throughWeek: 18 });
+
+      expect(last).toBe(week - 1);
+      expect(last - week + 1).toBe(0);
+    }
+  });
 });

@@ -9,7 +9,12 @@ import {
   type RosterPayload,
 } from "../src/core/rosters/state.ts";
 import { scoreStatLine } from "../src/core/scoring/score.ts";
-import type { LeagueConfig, PlayerIndex, WeeklyPoints } from "../src/core/types.ts";
+import {
+  SeasonDecidedError,
+  type LeagueConfig,
+  type PlayerIndex,
+  type WeeklyPoints,
+} from "../src/core/types.ts";
 import {
   leagueFixture,
   playersFixture,
@@ -83,8 +88,13 @@ function weeklyEveryWeek(index: PlayerIndex, config: LeagueConfig): WeeklyPoints
   return weekly;
 }
 
-/** A guillotine board for the fixture room at `week` with `liveTeams` alive. */
-function guillotineBoard(week: number, liveTeams: number) {
+/**
+ * A guillotine board for the fixture room at `week` with `liveTeams` alive.
+ *
+ * `chopsPerWeek` is the room's cadence from the registry; it defaults to the one-a-week
+ * room the ticket's worked examples use.
+ */
+function guillotineBoard(week: number, liveTeams: number, chopsPerWeek = 1) {
   const config = deriveLeagueConfig(leagueFixture());
   const index = buildPlayerIndex(playersFixture());
   const state = summarizeLeagueState({ rosters: roomOf(liveTeams), index, config, week });
@@ -96,7 +106,7 @@ function guillotineBoard(week: number, liveTeams: number) {
     weekly: weeklyEveryWeek(index, config),
     // The CLI passes the NFL's last week; the board is what decides to stop earlier.
     throughWeek: LAST_NFL_WEEK,
-    chopsPerWeek: 1,
+    chopsPerWeek,
   });
 }
 
@@ -141,6 +151,56 @@ describe("a guillotine season stops at the week it is decided", () => {
     expect(guillotineBoard(14, 3).diagnostics.economy?.chopsRemaining).toBe(1);
   });
 
+  test("AC3 — the release count follows the priced window at any cadence, not the live-team count", () => {
+    /**
+     * The count is `min((lastMeaningfulWeek − week) × chopsPerWeek, liveTeams − 1)`:
+     * every chop that still leaves a priced week behind it, capped by the number of
+     * chops the room has left to make.
+     *
+     * The one-a-week cases above cannot tell that formula apart from the simpler
+     * `liveTeams − 1 − chopsPerWeek`, because at one chop a week the two agree. A
+     * two-a-week room separates them, and so does a small room late in the season.
+     */
+
+    // Week 3, 14 live, TWO a week. The 13 chops fit into weeks 3…9, so the last
+    // meaningful week is 9 and the chops after weeks 3…8 — 6 weeks × 2 — release
+    // rosters that at least one priced week can still use. 12, not 13, and not the
+    // 11 that `liveTeams − 1 − chopsPerWeek` would give.
+    const fast = guillotineBoard(3, 14, 2);
+    expect(fast.diagnostics.throughWeek).toBe(9);
+
+    const fastEconomy = fast.diagnostics.economy;
+    if (!fastEconomy) throw new Error("the fixture league has FAAB; this should not be null");
+
+    expect(fastEconomy.chopsRemaining).toBe(12);
+    expect(fastEconomy.chopsRemaining).not.toBe(11); // liveTeams − 1 − chopsPerWeek
+    expect(fastEconomy.chopsRemaining).not.toBe(13); // liveTeams − 1, the old count
+    expect(fastEconomy.supply).toBeCloseTo(
+      fastEconomy.availableVorp + 12 * fastEconomy.rosteredVorpPerTeam,
+      6,
+    );
+
+    /**
+     * Week 8, 4 live, two a week: 3 chops need ceil(3 / 2) = 2 weeks, so the last
+     * meaningful week is 9. Only the chops after week 8 — two of them — leave week 9
+     * behind to play the released roster in. The third chop, the one that ends the
+     * season after week 9, releases a roster nobody can use.
+     *
+     * This case separates the formula from BOTH near-misses at once: `liveTeams − 1`
+     * is 3 and `liveTeams − 1 − chopsPerWeek` is 1.
+     */
+    const late = guillotineBoard(8, 4, 2);
+    expect(late.diagnostics.throughWeek).toBe(9);
+    expect(late.diagnostics.economy?.chopsRemaining).toBe(2);
+
+    // Week 9, 2 live, two a week: the single remaining chop ends the season after
+    // week 9, so nothing it releases is playable. The cap never makes the count
+    // exceed the chops the room has left.
+    const last = guillotineBoard(9, 2, 2);
+    expect(last.diagnostics.throughWeek).toBe(9);
+    expect(last.diagnostics.economy?.chopsRemaining).toBe(0);
+  });
+
   test("AC4 — one team left is a decided season, not a cadence error", () => {
     const config = deriveLeagueConfig(leagueFixture());
     const index = buildPlayerIndex(playersFixture());
@@ -151,6 +211,80 @@ describe("a guillotine season stops at the week it is decided", () => {
 
     expect(state.liveTeams).toBe(1);
     expect(() => assertChopCadence({ config, state, chopsPerWeek: 1 })).not.toThrow();
+  });
+
+  /**
+   * Build a board for a room whose season is already decided, and hand back whatever
+   * it threw. Returning anything at all is the failure: an empty board is a board, and
+   * a board with no rows on it reads as "nobody worth claiming this week" rather than
+   * "this season is over".
+   */
+  function refusalFor(week: number, liveTeams: number, chopsPerWeek = 1): unknown {
+    let thrown: unknown;
+    let returned = false;
+    try {
+      guillotineBoard(week, liveTeams, chopsPerWeek);
+      returned = true;
+    } catch (error) {
+      thrown = error;
+    }
+    expect(returned, "a decided season must be refused, never priced as an empty board").toBe(
+      false,
+    );
+    return thrown;
+  }
+
+  test("AC4 — a decided season is refused with a typed error, not priced and not crashed into", () => {
+    /**
+     * Week 17 of the 16-team room: the week-15 chop left one survivor, so the priced
+     * window is empty (`lastMeaningfulWeek` is 16, behind the current week). There is
+     * nothing to price, and the board says so in a way the CLI can catch by type —
+     * the same shape as `ChopCadenceError` and `UnsupportedLeagueError`.
+     */
+    const error = refusalFor(17, 1);
+
+    expect(error).toBeInstanceOf(SeasonDecidedError);
+
+    /**
+     * And it is refused BEFORE the curve is asked for. With `weeksRemaining` at zero
+     * or below, `survivalWeights` throws its own generic error ("survival needs at
+     * least one live team, week and chop per week…"), which is a crash, not an answer:
+     * the CLI cannot tell it apart from a real bug and must not exit 0 on it.
+     */
+    expect((error as Error).message).not.toMatch(/survival needs/i);
+    expect((error as Error).message).not.toMatch(/cannot finish/i);
+  });
+
+  test("AC4 — the decided week is the week of the final chop, from the league's own teams and cadence", () => {
+    /**
+     * N in "season decided in week N" is an observed fact, not a reading of the
+     * calendar: `ceil((teams − 1) / chopsPerWeek)`, where `teams` is Sleeper's own
+     * league payload and `chopsPerWeek` the registry's. For the chopped room that is
+     * ceil(15 / 1) = 15 — the week after which one team was left.
+     *
+     * It is NOT 16 (the last meaningful week, which is one behind the current week by
+     * construction once the season is decided) and NOT the week the command happens to
+     * be run in, which is why the same room run a week later reports the same N.
+     */
+    const decidedTeams = leagueFixture().total_rosters;
+    expect(decidedTeams).toBe(16); // the fixture room's own team count, not a constant
+
+    const week17 = refusalFor(17, 1) as SeasonDecidedError;
+    expect(week17.decidedInWeek).toBe(15);
+    expect(week17.decidedInWeek).not.toBe(16); // lastMeaningfulWeek, not the decided week
+    expect(week17.decidedInWeek).not.toBe(17); // nor the week the run happens in
+
+    const week18 = refusalFor(18, 1) as SeasonDecidedError;
+    expect(week18.decidedInWeek).toBe(15); // a week later, the same answer
+
+    /**
+     * Two a week halves the weeks needed and rounds up, because the last chop of an
+     * odd remainder still takes a whole week: ceil(15 / 2) = 8. Nothing here is a
+     * season length anyone typed in.
+     */
+    const fast = refusalFor(10, 1, 2) as SeasonDecidedError;
+    expect(fast.decidedInWeek).toBe(8);
+    expect(fast.decidedInWeek).not.toBe(7); // floor(15 / 2) — the last chop is not free
   });
 
   test("AC5 — the footer's two numbers come from the board: the week it is decided, and the releases left", () => {
