@@ -136,6 +136,13 @@ const named = process.argv.slice(2).map((file) => path.resolve(file));
 const checked = named.length
   ? tickets.filter((ticket) => named.includes(path.resolve(ticket.file)))
   : tickets.filter((ticket) => !SETTLED.has(ticket.status));
+// A named path that is no ticket means the gate just checked nothing while looking
+// green. /vet uses this form as its stop condition, so a mistyped number or a glob that
+// did not expand must fail here rather than wave the work through — the ticket-008
+// failure, one layer up.
+const unknownNamed = named.filter(
+  (file) => !tickets.some((ticket) => path.resolve(ticket.file) === file),
+);
 const skipped = tickets.filter((ticket) => !checked.includes(ticket));
 
 const covered = coverage();
@@ -164,7 +171,12 @@ for (const { label, status } of skipped) {
   say(`criteria: skipped ${label} (${status})`);
 }
 
-if (checked.length === 0) {
+for (const file of unknownNamed) {
+  complain(`criteria: ${path.relative(ROOT, file)} is not a ticket — nothing was checked for it`);
+  problems += 1;
+}
+
+if (checked.length === 0 && unknownNamed.length === 0) {
   say("criteria: no ticket left to check — every ticket is done or dropped");
 }
 

@@ -128,6 +128,21 @@ describe("what ran, and what did not", () => {
     expect(out).toMatch(/031-abandoned\.md[^\n]*dropped/);
   });
 
+  test("011 AC3 — a named path that is no ticket fails, rather than checking nothing quietly", () => {
+    // /vet names the ticket in flight, so a mistyped number or a glob that did not
+    // expand must stop the run. Green here would mean the gate checked nothing and
+    // said so in a way nobody reads — the ticket-008 failure, one layer up.
+    const root = fixtureRoot({
+      "042-alpha.md": ticket("open", "- **AC1** — something observable."),
+    });
+
+    const { code, out } = runCriteria(root, [path.join(root, "tickets", "999-nope.md")]);
+
+    expect(code).toBe(1);
+    expect(out).toContain("999-nope.md is not a ticket");
+    expect(out).not.toContain("every ticket is done or dropped");
+  });
+
   test("011 AC2 — a named ticket is checked whatever its status", () => {
     const root = fixtureRoot({
       "030-finished.md": ticket("done", "- **AC1** — long since proved."),
