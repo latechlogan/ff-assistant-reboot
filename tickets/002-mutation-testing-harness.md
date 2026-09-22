@@ -46,6 +46,12 @@ a different vitest setup; a version mismatch between Stryker 10 and Vitest 5.
   outside the `mutate` scope in `stryker.config.json`. Two survivors in that run are
   real, both in older code: `state.ts` `config.waiver.kind === "faab"` → `true`, and
   `roster.players ?? []` given a non-empty default.
+- **Scope gap, 2026-09-22 (ticket 004's re-vet):** `src/core/claims/cleared.ts` is not
+  in the `mutate` list either. It decides whether a frozen board may be overwritten —
+  a wrong answer destroys a record — so it belongs in scope. With `rosters/`, that is
+  two core directories the harness never mutates; the fix is to scope `mutate` to
+  `src/core/**` (minus tests) rather than keep adding directories by hand. Stryker
+  still ran 1.25 tests per mutant on that run (4.88%).
 
 ## Scope
 Touches: `stryker.config.json`, possibly `vitest.config.ts`, possibly a
