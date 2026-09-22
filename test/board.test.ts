@@ -28,10 +28,14 @@ const THROUGH_WEEK = 18;
 type Extra = {
   players?: Record<string, PlayerPayload>;
   rows?: ProjectionFixtureRow[];
+  /** A minimum bid for the room; the fixture league's own is $0. */
+  minBid?: number;
 };
 
 function board(week = 2, extra: Extra = {}) {
-  const config = deriveLeagueConfig(leagueFixture());
+  const league = leagueFixture();
+  if (extra.minBid !== undefined) league.settings.waiver_bid_min = extra.minBid;
+  const config = deriveLeagueConfig(league);
   const { index } = buildPlayerIndex({ ...playersFixture(), ...extra.players });
   const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week });
 
@@ -284,8 +288,8 @@ describe("positions with no real market", () => {
 describe("the board as it is frozen", () => {
   const INPUTS = ["raw/2026/nfl-state--x.json", "raw/2026/league-chopped--x.json"];
 
-  function artifact(generatedAt = "2026-09-22T15:00:00.000Z") {
-    const { index, result, state } = board();
+  function artifact(generatedAt = "2026-09-22T15:00:00.000Z", extra: Extra = {}) {
+    const { index, result, state } = board(2, extra);
     return {
       state,
       result,
@@ -338,6 +342,27 @@ describe("the board as it is frozen", () => {
     expect(shown + (dropped.valueSum ?? 0)).toBeCloseTo(expected, 2);
     // And nothing the board says anyone is worth can exceed the money in the room.
     expect(shown + (dropped.valueSum ?? 0)).toBeLessThanOrEqual(economy.pool);
+  });
+
+  test("AC3 — with a floor, every dropped row is worth exactly the floor, and the economy still closes", () => {
+    // The fixture room and both live rooms bid from $0, where a dropped row is worth
+    // $0 and a `valueSum` hardcoded to 0 would pass everything. A $1 floor makes the
+    // dropped rows carry real money, so the sum has to be computed to be right.
+    const minBid = 1;
+    const { board: frozen } = artifact(undefined, { minBid });
+    const { economy, dropped } = frozen.diagnostics;
+    if (!economy) throw new Error("the fixture league has FAAB; this should not be null");
+
+    expect(dropped.rowCount).toBeGreaterThan(0);
+    expect(dropped.valueSum).toBeCloseTo(minBid * dropped.rowCount, 6);
+
+    const shown = frozen.rows.reduce((sum, row) => sum + (row.value ?? 0), 0);
+    const reserve = economy.pool - economy.distributable;
+    expect(reserve).toBeCloseTo(minBid * frozen.diagnostics.availablePool, 6);
+    expect(shown + (dropped.valueSum ?? 0)).toBeCloseTo(
+      reserve + (economy.distributable * economy.availableVorp) / economy.supply,
+      2,
+    );
   });
 
   test("AC5 — two builds from the same inputs are byte-identical once generatedAt is removed", () => {
