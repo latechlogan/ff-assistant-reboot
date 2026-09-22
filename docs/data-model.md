@@ -33,7 +33,7 @@ erDiagram
 | `BID_OBSERVATION` | One claim from a crawled room, normalized as a share of that room's budget | `leagueId`, `week`, `playerId`, `bidShare`, `won`, `quality` |
 | `BID_CURVE` | The measured artifact: what share of a budget a player of a given quality goes for, as a distribution | `version`, `measuredAt`, `sampleSize`, `tiers[] { qualityBand, p25, p50, p75 }`, `provenance` |
 | `BOARD_ROW` | One available player, priced | `playerId`, `position`, `points`, `vorp`, `value`, `bidRange{low,high}`, `flags[]` |
-| `BOARD` | A league-week's rows plus diagnostics, frozen to disk | `leagueId`, `season`, `week`, `generatedAt`, `schemaVersion`, `diagnostics`, `rows[]` |
+| `BOARD` | A league-week's rows plus diagnostics, frozen to disk | `leagueKey` (never the Sleeper league ID), `season`, `week`, `generatedAt`, `schemaVersion`, `inputs[]` (the as-of files it read), `diagnostics` (incl. `economy`, `dropped{rowCount,valueSum}`), `rows[]` |
 
 `quality` on a `BID_OBSERVATION` is the open question Phase 4 has to settle: it needs
 a measure of how good a player looked **at the moment of the bid**, which requires

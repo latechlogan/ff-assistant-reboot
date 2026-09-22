@@ -175,10 +175,9 @@ const TOLERANCE = 0.01;
  * `availableVorp / supply` of it. The remainder is not missing — it is what the
  * rosters released by future chops are worth.
  *
- * NOTE: tickets/004's AC4 states this identity as "= distributable", which was true of
- * the 2026 tool, whose supply was this week's pool alone. Since tickets/006 and 007 the
- * supply spans the rest of the season, and the version written there cannot hold. The
- * shape above is the same claim about the same file, corrected.
+ * The 2026 tool's version was "= distributable", true only while supply was this
+ * week's pool alone; tickets/004's AC4 was amended to this form (DECISIONS.md,
+ * 2026-09-22).
  */
 export function assertEconomyCloses(board: Board, where: string): void {
   const { economy, dropped } = board.diagnostics;

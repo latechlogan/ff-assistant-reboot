@@ -226,10 +226,17 @@ the week's claims have cleared, nothing is written: an existing board is REFUSED
 can become the week's record. `docs/architecture.md` now has the `claims/` and adapter
 `board/` rows and the guard in the Tuesday sequence.
 
-Remaining should-fixes, same review, not blocking: `leg` on the transactions payload is parsed and documented as
-the week cross-check but never checked; the identity does not
-assert the population it closes over (`rows + dropped.rowCount === availablePool`); the
-floor is not recorded in the economy, so a reader cannot tell a $0 room from a $5 one
-(007 needs `reserve` recorded regardless — see DECISIONS.md); a
-failed transactions fetch exits with a stack trace rather than a sentence; an OVERWROTE
-records nothing about the evidence that permitted it;
+Remaining should-fixes from both reviews, not blocking, parked as **ticket 012**: `leg`
+parsed but never checked; the population not asserted on load; the floor/reserve not
+recorded; a failed transactions fetch surfaces as a stack trace; OVERWROTE records no
+evidence.
+
+## How AC8 was met
+
+Not quite as written. Parity ran on `main` in 519c815, before this branch was merged,
+and it **rebuilt our side from the pinned 2026-09-22 as-of files** rather than reading
+`boards/2026/wk03-chopped.json`. The frozen board would not have served anyway: it now
+carries 005/006/008/009's pricing (`throughWeek` 15), so it is not the board parity
+compared. The substance AC8 asked for is met: the value column agreed within ~$1, every
+difference has a named cause in DECISIONS.md (2026-09-22), and each one that was ours is
+a ticket (005, 006, 008, 009). "Unexplained" was not an outcome.

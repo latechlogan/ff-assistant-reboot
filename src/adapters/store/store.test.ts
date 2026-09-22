@@ -143,9 +143,9 @@ describe("league registry", () => {
 
 /**
  * A minimal board whose economy closes, so a test that breaks the identity has to
- * break it deliberately. The floor is 0, so `pool` and `distributable` are the same
- * number; a fifth of the season's supply is available this week, so a fifth of the
- * pool is what the rows are worth: 100 × 20 / 100 = $20.
+ * break it deliberately. A $2 floor over 3 available players reserves $6, leaving 94
+ * to distribute; a fifth of the season's supply is available this week, so the one
+ * priced row is worth 2 + 94 × 20 / 100 = $20.80 and the two dropped rows $2 each.
  */
 function sampleBoard(overrides: Partial<Board> = {}): Board {
   return {
