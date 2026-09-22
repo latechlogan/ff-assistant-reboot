@@ -227,9 +227,9 @@ can become the week's record. `docs/architecture.md` now has the `claims/` and a
 `board/` rows and the guard in the Tuesday sequence.
 
 Remaining should-fixes, same review, not blocking: `leg` on the transactions payload is parsed and documented as
-the week cross-check but never checked; a *first* freeze is unguarded, so a 4am first run
-after claims clear writes a post-claims record and then locks it; the identity does not
+the week cross-check but never checked; the identity does not
 assert the population it closes over (`rows + dropped.rowCount === availablePool`); the
-floor is not recorded in the economy, so a reader cannot tell a $0 room from a $5 one; a
+floor is not recorded in the economy, so a reader cannot tell a $0 room from a $5 one
+(007 needs `reserve` recorded regardless — see DECISIONS.md); a
 failed transactions fetch exits with a stack trace rather than a sentence; an OVERWROTE
 records nothing about the evidence that permitted it;
