@@ -41,7 +41,7 @@ const index: PlayerIndex = new Map<string, IndexedPlayer>([
 const scoring = { rec: 1, rec_yd: 0.1 };
 
 describe("accounting for every projection row", () => {
-  test("AC10 — an unmatched row is counted and logged as a warning, not a debug line", () => {
+  test("001 AC10 — an unmatched row is counted and logged as a warning, not a debug line", () => {
     const logger = recordingLogger();
 
     const scored = scoreWeeklyRows({
@@ -64,7 +64,7 @@ describe("accounting for every projection row", () => {
     expect(warning?.fields["sample"]).toEqual(["ghost"]);
   });
 
-  test("AC10 — a clean week logs nothing, so the warning keeps its meaning", () => {
+  test("001 AC10 — a clean week logs nothing, so the warning keeps its meaning", () => {
     const logger = recordingLogger();
 
     const scored = scoreWeeklyRows({
@@ -78,7 +78,7 @@ describe("accounting for every projection row", () => {
     expect(logger.entries).toHaveLength(0);
   });
 
-  test("AC10 — the rows are still scored when nobody is listening", () => {
+  test("001 AC10 — the rows are still scored when nobody is listening", () => {
     const scored = scoreWeeklyRows({
       rows: [{ player_id: "ghost", week: 3, stats: { rec: 1 } }],
       index,
@@ -104,7 +104,7 @@ describe("a skipped player who turns up with points", () => {
     ["cut", "Cut Kicker"],
   ]);
 
-  test("AC3 — a skipped inactive player with non-zero points is named at warn level, once per run", () => {
+  test("009 AC3 — a skipped inactive player with non-zero points is named at warn level, once per run", () => {
     const logger = recordingLogger();
 
     // Sixteen weeks are scored in one run; this player carries points in two of them.
@@ -140,7 +140,7 @@ describe("a skipped player who turns up with points", () => {
     expect(warnings[0]?.fields["week"]).toBe(3);
   });
 
-  test("AC3 — a skipped player scoring zero says nothing, and is never counted as unmatched", () => {
+  test("009 AC3 — a skipped player scoring zero says nothing, and is never counted as unmatched", () => {
     const logger = recordingLogger();
 
     const scored = scoreWeeklyRows({
@@ -166,7 +166,7 @@ describe("a skipped player who turns up with points", () => {
     expect(logger.entries).toHaveLength(0);
   });
 
-  test("AC3 — with no inactive set supplied, nothing changes", () => {
+  test("009 AC3 — with no inactive set supplied, nothing changes", () => {
     const scored = scoreWeeklyRows({
       rows: [{ player_id: "ghost", week: 3, stats: { rec: 1 } }],
       index,
@@ -193,7 +193,7 @@ describe("a skipped player who turns up with points", () => {
  * CLI prints them once for the run, which is adapter wiring and tested there.
  */
 describe("accounting for every stat key and every scoring rule", () => {
-  test("AC3 — a scored week reports the rules that matched nothing and the stat keys that matched nothing", () => {
+  test("008 AC3 — a scored week reports the rules that matched nothing and the stat keys that matched nothing", () => {
     const scored = scoreWeeklyRows({
       rows: [
         {
@@ -224,7 +224,7 @@ describe("accounting for every stat key and every scoring rule", () => {
     expect(scored.unmatchedStats).toEqual(["rec_tgt"]);
   });
 
-  test("AC3 — the lists are deduped and cover every week and row in the call, not just the first", () => {
+  test("008 AC3 — the lists are deduped and cover every week and row in the call, not just the first", () => {
     const scored = scoreWeeklyRows({
       rows: [
         { player_id: "known", week: 3, stats: { rec: 1, rec_tgt: 2 } },
@@ -242,7 +242,7 @@ describe("accounting for every stat key and every scoring rule", () => {
     expect(scored.unmatchedRules).toEqual(["rec_td"]);
   });
 
-  test("AC3 — a bridged key counts as matched on both sides, so the report does not cry wolf", () => {
+  test("008 AC3 — a bridged key counts as matched on both sides, so the report does not cry wolf", () => {
     const scored = scoreWeeklyRows({
       rows: [{ player_id: "known", week: 3, stats: { fgm_50p: 0.36 } }],
       index,
@@ -258,7 +258,7 @@ describe("accounting for every stat key and every scoring rule", () => {
     expect(scored.unmatchedRules).toEqual(["fgm_60p"]);
   });
 
-  test("AC3 — with no fgm_50_59 rule to bridge to, fgm_50p is reported rather than dropped", () => {
+  test("008 AC3 — with no fgm_50_59 rule to bridge to, fgm_50p is reported rather than dropped", () => {
     const scored = scoreWeeklyRows({
       rows: [{ player_id: "known", week: 3, stats: { fgm_50p: 0.36 } }],
       index,
@@ -272,7 +272,7 @@ describe("accounting for every stat key and every scoring rule", () => {
     expect(scored.unmatchedRules).toEqual(["fgm_0_19"]);
   });
 
-  test("AC3 — on the fixtures the report names the fgmiss family and nothing scoring-irrelevant", () => {
+  test("008 AC3 — on the fixtures the report names the fgmiss family and nothing scoring-irrelevant", () => {
     const scored = scoreWeeklyRows({
       rows: projectionsFixture().map((row) => ({
         player_id: row.player_id,
@@ -339,7 +339,7 @@ describe("folding a run's weeks into one report", () => {
     ...over,
   });
 
-  test("AC3 — stat keys union across weeks: unmatched in any week is unmatched for the run", () => {
+  test("008 AC3 — stat keys union across weeks: unmatched in any week is unmatched for the run", () => {
     const merged = mergeUnmatched([
       week({ unmatchedStats: ["fgmiss_40_49"] }),
       week({ unmatchedStats: ["fgm_50p", "fgmiss_40_49"] }),
@@ -350,7 +350,7 @@ describe("folding a run's weeks into one report", () => {
     expect(merged.unmatchedStats).toEqual(["fgm_50p", "fgmiss_40_49"]);
   });
 
-  test("AC3 — rules intersect across weeks: a rule that matched anywhere is not unmatched", () => {
+  test("008 AC3 — rules intersect across weeks: a rule that matched anywhere is not unmatched", () => {
     const merged = mergeUnmatched([
       week({ unmatchedRules: ["fgm_60p", "fgmiss", "sack"] }),
       week({ unmatchedRules: ["fgmiss", "sack"] }), // fgm_60p matched in this week
@@ -361,7 +361,7 @@ describe("folding a run's weeks into one report", () => {
     expect(merged.unmatchedRules).toEqual(["fgmiss", "sack"]);
   });
 
-  test("AC3 — the merged lists are sorted and deduped, so two runs print one order", () => {
+  test("008 AC3 — the merged lists are sorted and deduped, so two runs print one order", () => {
     const merged = mergeUnmatched([
       week({ unmatchedRules: ["sack", "fgmiss"], unmatchedStats: ["fgmiss_50p", "fga"] }),
       week({ unmatchedRules: ["fgmiss", "sack"], unmatchedStats: ["fga"] }),
@@ -371,7 +371,7 @@ describe("folding a run's weeks into one report", () => {
     expect(merged.unmatchedStats).toEqual(["fga", "fgmiss_50p"]);
   });
 
-  test("AC3 — a run with no weeks reports nothing rather than throwing", () => {
+  test("008 AC3 — a run with no weeks reports nothing rather than throwing", () => {
     expect(mergeUnmatched([])).toEqual({ unmatchedRules: [], unmatchedStats: [] });
   });
 });

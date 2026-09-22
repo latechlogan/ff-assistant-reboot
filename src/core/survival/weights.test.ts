@@ -75,7 +75,7 @@ describe("the capacity guard", () => {
     expect(call).toThrow(/team|week|chop/i);
   });
 
-  test("AC8 — the same league state produces the same weights twice", () => {
+  test("001 AC8 — the same league state produces the same weights twice", () => {
     const args = { liveTeams: 13, weeksRemaining: 13, chopsPerWeek: 1 };
 
     expect(survivalWeights(args)).toEqual(survivalWeights(args));

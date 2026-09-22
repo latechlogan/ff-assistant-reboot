@@ -75,7 +75,7 @@ function fixtureConfig(overrides: Partial<LeagueConfig> = {}): LeagueConfig {
 const BUDGET = leagueFixture().settings.waiver_budget ?? 0; // 1000, from the payload
 
 describe("who is live and who is chopped", () => {
-  test("AC5 — `eliminated: 1` is chopped; the key being absent means alive", () => {
+  test("001 AC5 — `eliminated: 1` is chopped; the key being absent means alive", () => {
     const index = fixtureIndex();
 
     const state = summarizeLeagueState({
@@ -95,7 +95,7 @@ describe("who is live and who is chopped", () => {
     expect(state.availableIds).toHaveLength(56);
   });
 
-  test("AC5 — a chopped roster's players are back in the available pool", () => {
+  test("001 AC5 — a chopped roster's players are back in the available pool", () => {
     const rosters = rostersFixture();
     const chopped = rosterById(rosters, 2); // 15 real players, then chopped
     chopped.settings.eliminated = 1;
@@ -126,7 +126,7 @@ describe("who is live and who is chopped", () => {
  * as a live team — and nothing complained, because its players were already released.
  */
 describe("a chop is recorded as the week it happened", () => {
-  test("AC1 — any integer in `eliminated` means chopped; absent or null means alive", () => {
+  test("005 AC1 — any integer in `eliminated` means chopped; absent or null means alive", () => {
     const rosters = rostersFixture();
     rosterById(rosters, 2).settings.eliminated = 2;
     rosterById(rosters, 1).settings.eliminated = null;
@@ -143,7 +143,7 @@ describe("a chop is recorded as the week it happened", () => {
     expect(state.rosters.find((r) => r.rosterId === 1)?.eliminated).toBe(false);
   });
 
-  test("AC2 — rosters chopped in weeks 1 and 2 are both out, players and money alike", () => {
+  test("005 AC2 — rosters chopped in weeks 1 and 2 are both out, players and money alike", () => {
     const rosters = rostersFixture();
     const chopped = rosterById(rosters, 2); // spent 24 before being chopped
     chopped.settings.eliminated = 2;
@@ -175,7 +175,7 @@ describe("the live count must match the chop cadence", () => {
   });
   const teams = fixtureConfig().teams; // 16, from the payload
 
-  test("AC3 — a live count that matches the cadence passes", () => {
+  test("005 AC3 — a live count that matches the cadence passes", () => {
     // Week 3 at one chop a week: chops after weeks 1 and 2, so 16 − 2 = 14.
     expect(() =>
       assertChopCadence({
@@ -194,7 +194,7 @@ describe("the live count must match the chop cadence", () => {
     ).not.toThrow();
   });
 
-  test("AC3 — a live count off the cadence stops the run, naming both numbers and the week", () => {
+  test("005 AC3 — a live count off the cadence stops the run, naming both numbers and the week", () => {
     // The 2026-09-22 failure exactly: 15 read as live where the cadence says 14.
     const run = () =>
       assertChopCadence({
@@ -215,7 +215,7 @@ describe("the live count must match the chop cadence", () => {
    * EXACTLY one survivor — replace it with an early return and this is the test that
    * notices, because everything else about a decided room still passes.
    */
-  test("AC3 — past the decided week the floor still demands exactly one survivor", () => {
+  test("006 AC4 — past the decided week the floor still demands exactly one survivor", () => {
     // 16 teams at one a week are decided in week 15; week 17 may only ever show 1.
     expect(() =>
       assertChopCadence({
@@ -236,7 +236,7 @@ describe("the live count must match the chop cadence", () => {
     }
   });
 
-  test("AC3 — a league that is not a guillotine has no cadence to check", () => {
+  test("005 AC3 — a league that is not a guillotine has no cadence to check", () => {
     expect(() =>
       assertChopCadence({
         config: fixtureConfig({ format: "standard" }),
@@ -248,7 +248,7 @@ describe("the live count must match the chop cadence", () => {
 });
 
 describe("the available pool is what is observed, not what the shape allows", () => {
-  test("AC6 — reserve and taxi count as owned, not available", () => {
+  test("001 AC6 — reserve and taxi count as owned, not available", () => {
     const index = fixtureIndex();
     const [first = "", second = "", third = ""] = [...index.keys()];
     const rosters: RosterPayload[] = [
@@ -271,7 +271,7 @@ describe("the available pool is what is observed, not what the shape allows", ()
     }
   });
 
-  test("AC6 — an over-full roster still yields a correct pool, because the pool is a complement", () => {
+  test("001 AC6 — an over-full roster still yields a correct pool, because the pool is a complement", () => {
     const index = fixtureIndex();
     const rosters = rostersFixture();
     const owned = rosterById(rosters, 1).players ?? [];
@@ -302,7 +302,7 @@ describe("the available pool is what is observed, not what the shape allows", ()
     expect(state.availableIds).not.toHaveLength(index.size - 15);
   });
 
-  test("AC8 — the same rosters produce the same pool twice, whatever order they arrive in", () => {
+  test("001 AC8 — the same rosters produce the same pool twice, whatever order they arrive in", () => {
     const config = fixtureConfig();
     const args = { index: fixtureIndex(), config, week: 2 };
 
@@ -317,7 +317,7 @@ describe("the available pool is what is observed, not what the shape allows", ()
 });
 
 describe("the money the board is priced in", () => {
-  test("AC7 — the FAAB pool sums remaining budget over live rosters only", () => {
+  test("001 AC7 — the FAAB pool sums remaining budget over live rosters only", () => {
     const state = summarizeLeagueState({
       rosters: rostersFixture(),
       index: fixtureIndex(),
@@ -332,7 +332,7 @@ describe("the money the board is priced in", () => {
     expect(state.faabPool).toBe(2 * BUDGET - 25);
   });
 
-  test("AC7 — a league with no FAAB currency has a null pool, never an invented number", () => {
+  test("001 AC7 — a league with no FAAB currency has a null pool, never an invented number", () => {
     const config = fixtureConfig({ waiver: { kind: "rolling", budget: null, minBid: null } });
 
     const state = summarizeLeagueState({

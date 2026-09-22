@@ -30,7 +30,7 @@ const total = (values: ReadonlyMap<string, number>): number =>
   [...values.values()].reduce((sum, value) => sum + value, 0);
 
 describe("spreading the pool over the season's supply", () => {
-  test("AC7 — value over the available rows sums to the pool's share of the supply", () => {
+  test("001 AC7 — value over the available rows sums to the pool's share of the supply", () => {
     const { values, diagnostics } = allocateFaab({
       availableVorp: AVAILABLE,
       rosteredVorpByTeam: ROSTERED,
@@ -83,7 +83,7 @@ describe("spreading the pool over the season's supply", () => {
     expect(got(midSeason.values, "a")).toBeLessThan(got(lastChop.values, "a"));
   });
 
-  test("AC7 — the identity still closes over the available rows once a floor is paid", () => {
+  test("001 AC7 — the identity still closes over the available rows once a floor is paid", () => {
     const availableVorp = new Map([
       ["a", 60],
       ["b", 0],
@@ -112,7 +112,7 @@ describe("spreading the pool over the season's supply", () => {
     expect(total(values)).toBeLessThanOrEqual(diagnostics.pool);
   });
 
-  test("AC7 — a row at or below replacement gets the floor, never a negative dollar", () => {
+  test("001 AC7 — a row at or below replacement gets the floor, never a negative dollar", () => {
     const { values } = allocateFaab({
       availableVorp: new Map([
         ["a", 60],
@@ -152,7 +152,7 @@ describe("spreading the pool over the season's supply", () => {
     expect(diagnostics.dollarsPerVorp).toBeCloseTo(97 / 70, 10);
   });
 
-  test("AC7 — the diagnostics state the economy the price came from", () => {
+  test("001 AC7 — the diagnostics state the economy the price came from", () => {
     const { diagnostics } = allocateFaab({
       availableVorp: AVAILABLE,
       rosteredVorpByTeam: ROSTERED,
@@ -170,7 +170,7 @@ describe("spreading the pool over the season's supply", () => {
     expect(diagnostics.dollarsPerVorp).toBeCloseTo(1000 / 340, 10);
   });
 
-  test("AC8 — the same inputs produce the same values twice", () => {
+  test("001 AC8 — the same inputs produce the same values twice", () => {
     const args = {
       availableVorp: AVAILABLE,
       rosteredVorpByTeam: ROSTERED,
@@ -184,7 +184,7 @@ describe("spreading the pool over the season's supply", () => {
 });
 
 describe("a floor the room cannot pay", () => {
-  test("AC7 — a reserve larger than the pool is refused, not turned into negative prices", () => {
+  test("001 AC7 — a reserve larger than the pool is refused, not turned into negative prices", () => {
     // The live week-2 shape: 4,137 available players, $13,701 in the room. At a $5
     // minimum bid the reserve is $20,685 — more than the pool — and an unguarded
     // subtraction prices the best player at −$13.90 while the board still "closes".
@@ -204,7 +204,7 @@ describe("a floor the room cannot pay", () => {
     expect(call).toThrow(/reserve|floor|pool/i);
   });
 
-  test("AC7 — no price is ever negative, whatever the floor", () => {
+  test("001 AC7 — no price is ever negative, whatever the floor", () => {
     const { values } = allocateFaab({
       availableVorp: new Map([
         ["a", 60],

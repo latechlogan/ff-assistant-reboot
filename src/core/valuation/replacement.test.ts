@@ -146,7 +146,7 @@ describe("replacement level", () => {
 });
 
 describe("VORP", () => {
-  test("AC10 — below-replacement players are floored at 0, so dropped rows are countable", () => {
+  test("001 AC10 — below-replacement players are floored at 0, so dropped rows are countable", () => {
     expect(vorp(120, 100)).toBeCloseTo(20, 10);
     expect(vorp(100, 100)).toBe(0); // exactly replacement is worth nothing over it
     expect(vorp(90, 100)).toBe(0); // never negative: a row to drop, not a debt

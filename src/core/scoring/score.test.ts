@@ -25,7 +25,7 @@ function statsFor(playerId: string): Record<string, number> {
 }
 
 describe("scoring a real stat line under a real league's rules", () => {
-  test("AC3 — scores stat lines locally, never a pre-scored pts_* field", () => {
+  test("001 AC3 — scores stat lines locally, never a pre-scored pts_* field", () => {
     const stats = statsFor("421"); // Matthew Stafford, week 2
 
     const points = scoreStatLine(stats, SCORING);
@@ -51,7 +51,7 @@ describe("scoring a real stat line under a real league's rules", () => {
     expect(points).not.toBeCloseTo(16.84, 2);
   });
 
-  test("AC3 — pre-scored and market fields are ignored even when the league weights them", () => {
+  test("001 AC3 — pre-scored and market fields are ignored even when the league weights them", () => {
     // A hostile payload: the league lists weights for the very fields that must never
     // be read. Only pass_yd may contribute.
     const stats = { pass_yd: 100, pts_ppr: 99, pts_std: 99, adp_dd_ppr: 50, pos_adp_dd_ppr: 3 };
@@ -61,7 +61,7 @@ describe("scoring a real stat line under a real league's rules", () => {
     expect(scoreStatLine(stats, scoring)).toBeCloseTo(4, 10);
   });
 
-  test("AC3 — a stat with no weight contributes nothing, and negative weights apply as given", () => {
+  test("001 AC3 — a stat with no weight contributes nothing, and negative weights apply as given", () => {
     const stats = { rush_yd: 50, tackle_solo: 9, pass_int: 2, fum_lost: 1 };
 
     // 50 × 0.1 = 5; tackle_solo has no weight in this league; 2 × −1 = −2; 1 × −2 = −2.
@@ -70,7 +70,7 @@ describe("scoring a real stat line under a real league's rules", () => {
 });
 
 describe("a week a player does not play", () => {
-  test("AC4 — a statless bye row scores exactly 0.0 and does not throw", () => {
+  test("001 AC4 — a statless bye row scores exactly 0.0 and does not throw", () => {
     const stats = statsFor("6744"); // Greg Ward: the fixture's one statless row
 
     expect(Object.keys(stats)).toEqual(["adp_dd_ppr"]); // no gp, no game_id, ADP only
@@ -89,7 +89,7 @@ describe("a week a player does not play", () => {
     expect(scoreStatLine({ adp_dd_ppr: 1000 }, SCORING)).toBe(0);
   });
 
-  test("AC4 — an empty stat line scores 0 rather than throwing", () => {
+  test("001 AC4 — an empty stat line scores 0 rather than throwing", () => {
     expect(scoreStatLine({}, SCORING)).toBe(0);
   });
 });
@@ -106,7 +106,7 @@ describe("a week a player does not play", () => {
  * `fgm_50_59: 5`, `fgm_60p: 6`, and no `fgm_50p` key.
  */
 describe("the fgm_50p bridge", () => {
-  test("AC1 — fgm_50p scores at the league's fgm_50_59 rate when the league has no fgm_50p rule", () => {
+  test("008 AC1 — fgm_50p scores at the league's fgm_50_59 rate when the league has no fgm_50p rule", () => {
     // The fixture league is the shape the ticket describes, or this test proves nothing.
     expect(SCORING["fgm_50_59"]).toBe(5);
     expect(SCORING["fgm_50p"]).toBeUndefined();
@@ -116,7 +116,7 @@ describe("the fgm_50p bridge", () => {
     expect(scoreStatLine({ fgm_50p: 0.36 }, SCORING)).toBeCloseTo(1.8, 10);
   });
 
-  test("AC1 — a league with its own fgm_50p rule uses that rule, and the bridge does not fire", () => {
+  test("008 AC1 — a league with its own fgm_50p rule uses that rule, and the bridge does not fire", () => {
     const scoring = { fgm_50p: 2, fgm_50_59: 5 };
 
     // 0.36 × 2 = 0.72, this league's own rate. Bridging to fgm_50_59 anyway would give
@@ -124,7 +124,7 @@ describe("the fgm_50p bridge", () => {
     expect(scoreStatLine({ fgm_50p: 0.36 }, scoring)).toBeCloseTo(0.72, 10);
   });
 
-  test("AC1 — a league's own fgm_50p rule is used even when it is zero or negative", () => {
+  test("008 AC1 — a league's own fgm_50p rule is used even when it is zero or negative", () => {
     // `0` is the trap: an implementation that bridges on a FALSY weight rather than an
     // ABSENT one turns a league's deliberate "50+ kicks are worth nothing" into 5.
     expect(scoreStatLine({ fgm_50p: 0.36 }, { fgm_50p: 0, fgm_50_59: 5 })).toBeCloseTo(0, 10);
@@ -132,7 +132,7 @@ describe("the fgm_50p bridge", () => {
     expect(scoreStatLine({ fgm_50p: 0.4 }, { fgm_50p: -1, fgm_50_59: 5 })).toBeCloseTo(-0.4, 10);
   });
 
-  test("AC1 — no other stat key is bridged", () => {
+  test("008 AC1 — no other stat key is bridged", () => {
     // The ticket names the miss buckets and rules them out BY NAME: three feed keys
     // collapsing into one `fgmiss` rule is a different shape from one made-bucket
     // splitting into two, and it needs its own decision. Bridging them here is
@@ -158,7 +158,7 @@ describe("the fgm_50p bridge", () => {
     expect(scoreStatLine({ fgm_50p: 1 }, SCORING)).toBeCloseTo(5, 10); // 5 — not 6, not 11
   });
 
-  test("AC2 — a line carrying both fgm_50p and fgm_50_59 scores each once, at its own rule", () => {
+  test("008 AC2 — a line carrying both fgm_50p and fgm_50_59 scores each once, at its own rule", () => {
     // fgm_50p    0.36 × 5 (bridged)        = 1.8
     // fgm_50_59  0.4  × 5 (its own rule)   = 2.0
     //                                        ─────
@@ -167,14 +167,14 @@ describe("the fgm_50p bridge", () => {
     expect(scoreStatLine({ fgm_50p: 0.36, fgm_50_59: 0.4 }, SCORING)).toBeCloseTo(3.8, 10);
   });
 
-  test("AC2 — where the league scores both keys, each is scored at its own rate, once", () => {
+  test("008 AC2 — where the league scores both keys, each is scored at its own rate, once", () => {
     const scoring = { fgm_50p: 2, fgm_50_59: 5 };
 
     // 0.36 × 2 = 0.72 plus 0.4 × 5 = 2.0 → 2.72. No bridge fires: both keys have rules.
     expect(scoreStatLine({ fgm_50p: 0.36, fgm_50_59: 0.4 }, scoring)).toBeCloseTo(2.72, 10);
   });
 
-  test("AC2 — a whole kicker line scores every bucket once, bridge included", () => {
+  test("008 AC2 — a whole kicker line scores every bucket once, bridge included", () => {
     // Spencer Shrader's real week-3 line, the row the parity check found. Field-goal
     // and extra-point keys only; the feed's own pts_* and adp fields are never read.
     const stats = {
@@ -222,7 +222,7 @@ function scoreBefore(
 }
 
 describe("the blast radius of the bridge", () => {
-  test("AC5 — every non-K fixture row scores exactly what it scored before the bridge", () => {
+  test("008 AC5 — every non-K fixture row scores exactly what it scored before the bridge", () => {
     const players = playersFixture();
     const rows = projectionsFixture().filter((row) => players[row.player_id]?.position !== "K");
 
@@ -238,7 +238,7 @@ describe("the blast radius of the bridge", () => {
     }
   });
 
-  test("AC5 — on these fixtures even the K rows are unmoved, because the week-2 feed sent no fgm_50p", () => {
+  test("008 AC5 — on these fixtures even the K rows are unmoved, because the week-2 feed sent no fgm_50p", () => {
     const players = playersFixture();
     const kickers = projectionsFixture().filter((row) => players[row.player_id]?.position === "K");
 

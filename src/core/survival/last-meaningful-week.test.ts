@@ -14,7 +14,7 @@ import { survivalWeights } from "./weights.ts";
  */
 
 describe("the last week a chop still decides anything", () => {
-  test("AC1 — the last priced week is the week of the final chop, and never later than the caller's last NFL week", () => {
+  test("006 AC1 — the last priced week is the week of the final chop, and never later than the caller's last NFL week", () => {
     /**
      * `week + ceil((liveTeams − 1) / chopsPerWeek) − 1`. Each example is the ticket's,
      * worked by hand:
@@ -48,7 +48,7 @@ describe("the last week a chop still decides anything", () => {
     );
   });
 
-  test("AC2 — the survival curve covers the priced weeks and no more: 13 entries summing to 7.4286", () => {
+  test("006 AC2 — the survival curve covers the priced weeks and no more: 13 entries summing to 7.4286", () => {
     // The ticket's own case: week 3, 14 live, one chop a week. The window the curve is
     // asked for is exactly the weeks the function says are worth pricing.
     const week = 3;
@@ -76,7 +76,7 @@ describe("the last week a chop still decides anything", () => {
     expect(total).toBeCloseTo(7.4286, 4);
   });
 
-  test("AC4 — with one team left the season is decided, and no week after it is priced", () => {
+  test("006 AC4 — with one team left the season is decided, and no week after it is priced", () => {
     /**
      * The 16-team room chops through week 15 and one team is left. Week 17 is the case
      * the cadence check trips over today (tickets/005's review): Sleeper shows 1 live
@@ -92,7 +92,7 @@ describe("the last week a chop still decides anything", () => {
     expect(last).toBe(16); // week + ceil(0 / 1) − 1
   });
 
-  test("AC4 — a decided season has an empty priced window at any cadence, and the window is never negative-by-cadence", () => {
+  test("006 AC4 — a decided season has an empty priced window at any cadence, and the window is never negative-by-cadence", () => {
     /**
      * "Decided" is not a cadence-specific state: with one team left there is no chop
      * to make, so `ceil(0 / chopsPerWeek)` is 0 whatever the room's speed, and the

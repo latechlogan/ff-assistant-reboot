@@ -61,7 +61,7 @@ describe("summing the weeks still to come", () => {
     expect(got(flat, "p1")).toBeCloseTo(got(unweighted, "p1"), 10);
   });
 
-  test("AC8 — the same weeks produce the same totals twice", () => {
+  test("001 AC8 — the same weeks produce the same totals twice", () => {
     const args = { weekly, fromWeek: 2, throughWeek: 4, weights: [1, 0.9, 0.8] };
 
     expect([...restOfSeasonPoints(args)]).toEqual([...restOfSeasonPoints(args)]);

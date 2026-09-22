@@ -61,7 +61,7 @@ describe("who gets into the index", () => {
     expect(index.get("hyb")?.position).toBe("WR");
   });
 
-  test("AC6 — each indexed player carries the identity the pool and the board need", () => {
+  test("001 AC6 — each indexed player carries the identity the pool and the board need", () => {
     const { index } = buildPlayerIndex({
       a: payload({ player_id: "a", full_name: "Ja'Marr Chase", position: "WR", team: "CIN" }),
       b: payload({ player_id: "b", first_name: " Puka ", last_name: " Nacua ", position: "WR" }),
@@ -82,7 +82,7 @@ describe("who gets into the index", () => {
     });
   });
 
-  test("AC1 — a player Sleeper marks inactive is not indexed; an active or flagless one is", () => {
+  test("009 AC1 — a player Sleeper marks inactive is not indexed; an active or flagless one is", () => {
     const { index } = buildPlayerIndex({
       retired: payload({ player_id: "retired", position: "WR", active: false }),
       playing: payload({ player_id: "playing", position: "WR", active: true }),
@@ -107,7 +107,7 @@ describe("who gets into the index", () => {
 });
 
 describe("what the index makes countable", () => {
-  test("AC2 — the index reports how many players it skipped for being inactive, and who", () => {
+  test("009 AC2 — the index reports how many players it skipped for being inactive, and who", () => {
     const { index, inactive } = buildPlayerIndex({
       r1: payload({
         player_id: "r1",
@@ -138,14 +138,14 @@ describe("what the index makes countable", () => {
     expect(inactive.has("lb")).toBe(false);
   });
 
-  test("AC2 — an all-active payload skips nobody, so a non-zero count is signal", () => {
+  test("009 AC2 — an all-active payload skips nobody, so a non-zero count is signal", () => {
     const { index, inactive } = buildPlayerIndex(playersFixture());
 
     expect(inactive.size).toBe(0);
     expect(index.size).toBe(Object.keys(playersFixture()).length);
   });
 
-  test("AC10 — a projection row whose player is not indexed is observably unmatched", () => {
+  test("001 AC10 — a projection row whose player is not indexed is observably unmatched", () => {
     const rows = [
       ...projectionsFixture(),
       { player_id: "900000000000000099", week: 2, season: "2026", stats: { gp: 1 } },

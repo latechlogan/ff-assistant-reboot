@@ -24,7 +24,7 @@ function refusalFrom(payload: LeaguePayload): UnsupportedLeagueError {
 }
 
 describe("deriving a league from its own settings", () => {
-  test("AC2 — reads teams, roster shape, scoring and FAAB from the payload", () => {
+  test("001 AC2 — reads teams, roster shape, scoring and FAAB from the payload", () => {
     const payload = leagueFixture();
 
     const config = deriveLeagueConfig(payload);
@@ -45,7 +45,7 @@ describe("deriving a league from its own settings", () => {
     expect(config.scoring["rec"]).toBe(1);
   });
 
-  test("AC2 — every number tracks the payload, so a different room derives different numbers", () => {
+  test("001 AC2 — every number tracks the payload, so a different room derives different numbers", () => {
     const payload = leagueFixture();
     payload.total_rosters = 8;
     payload.roster_positions = ["QB", "RB", "WR", "FLEX", "BN", "BN"];
@@ -63,7 +63,7 @@ describe("deriving a league from its own settings", () => {
     expect(config.waiver).toEqual({ kind: "faab", budget: 250, minBid: 2 });
   });
 
-  test("AC2 — IR and taxi slots are not auction slots and do not count toward roster size", () => {
+  test("001 AC2 — IR and taxi slots are not auction slots and do not count toward roster size", () => {
     const payload = leagueFixture();
     payload.roster_positions = ["QB", "RB", "WR", "FLEX", "BN", "BN", "IR", "TAXI"];
 
@@ -75,7 +75,7 @@ describe("deriving a league from its own settings", () => {
     expect(config.flexSlots).toBe(1);
   });
 
-  test("AC2 — a waiver type that is not FAAB has no currency, never an invented budget", () => {
+  test("001 AC2 — a waiver type that is not FAAB has no currency, never an invented budget", () => {
     const payload = leagueFixture();
     payload.settings.type = 0; // an ordinary redraft room
     payload.settings.waiver_type = 0; // rolling priority
@@ -91,7 +91,7 @@ describe("deriving a league from its own settings", () => {
 });
 
 describe("refusing a format this project does not model", () => {
-  test("AC2 — a superflex room is refused by name, not priced", () => {
+  test("001 AC2 — a superflex room is refused by name, not priced", () => {
     const payload = leagueFixture();
     payload.roster_positions = ["QB", "SUPER_FLEX", "RB", "WR", "TE", "K", "BN"];
 
@@ -103,7 +103,7 @@ describe("refusing a format this project does not model", () => {
     expect(refusal.message).toContain(refusal.reason);
   });
 
-  test("AC2 — IDP and DST slots are refused by name", () => {
+  test("001 AC2 — IDP and DST slots are refused by name", () => {
     const withDefense = leagueFixture();
     withDefense.roster_positions = ["QB", "RB", "WR", "TE", "K", "DEF", "BN"];
     const withIdp = leagueFixture();
@@ -113,7 +113,7 @@ describe("refusing a format this project does not model", () => {
     expect(refusalFrom(withIdp).reason).toMatch(/idp|lb|defen/i);
   });
 
-  test("AC2 — best-ball and keeper/dynasty rooms are refused by name", () => {
+  test("001 AC2 — best-ball and keeper/dynasty rooms are refused by name", () => {
     const bestBall = leagueFixture();
     bestBall.settings["best_ball"] = 1;
     const keeper = leagueFixture();

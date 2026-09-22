@@ -111,7 +111,7 @@ function guillotineBoard(week: number, liveTeams: number, chopsPerWeek = 1) {
 }
 
 describe("a guillotine season stops at the week it is decided", () => {
-  test("AC2 — rest-of-season points include no week after the last priced week", () => {
+  test("006 AC2 — rest-of-season points include no week after the last priced week", () => {
     // Week 3, 14 live, one chop a week: the 13 waiver periods that matter are 3…15.
     const { diagnostics } = guillotineBoard(3, 14);
 
@@ -130,7 +130,7 @@ describe("a guillotine season stops at the week it is decided", () => {
     expect(total).toBeCloseTo(7.4286, 4); // 104/14, the ticket's number, ±1e-4
   });
 
-  test("AC3 — supply counts only the releases that can still be claimed and played", () => {
+  test("006 AC3 — supply counts only the releases that can still be claimed and played", () => {
     // A chop counts only if at least one priced week remains after it. Week 3, 14 live:
     // chops follow weeks 3…15, and the one after week 15 releases a roster nobody can
     // use — 12 releases worth buying, not 13.
@@ -151,7 +151,7 @@ describe("a guillotine season stops at the week it is decided", () => {
     expect(guillotineBoard(14, 3).diagnostics.economy?.chopsRemaining).toBe(1);
   });
 
-  test("AC3 — the release count follows the priced window at any cadence, not the live-team count", () => {
+  test("006 AC3 — the release count follows the priced window at any cadence, not the live-team count", () => {
     /**
      * The count is `min((lastMeaningfulWeek − week) × chopsPerWeek, liveTeams − 1)`:
      * every chop that still leaves a priced week behind it, capped by the number of
@@ -201,7 +201,7 @@ describe("a guillotine season stops at the week it is decided", () => {
     expect(last.diagnostics.economy?.chopsRemaining).toBe(0);
   });
 
-  test("AC4 — one team left is a decided season, not a cadence error", () => {
+  test("006 AC4 — one team left is a decided season, not a cadence error", () => {
     const config = deriveLeagueConfig(leagueFixture());
     const { index } = buildPlayerIndex(playersFixture());
     // Week 17 of the 16-team room: the week-15 chop left one team, and `teams −
@@ -234,7 +234,7 @@ describe("a guillotine season stops at the week it is decided", () => {
     return thrown;
   }
 
-  test("AC4 — a decided season is refused with a typed error, not priced and not crashed into", () => {
+  test("006 AC4 — a decided season is refused with a typed error, not priced and not crashed into", () => {
     /**
      * Week 17 of the 16-team room: the week-15 chop left one survivor, so the priced
      * window is empty (`lastMeaningfulWeek` is 16, behind the current week). There is
@@ -255,7 +255,7 @@ describe("a guillotine season stops at the week it is decided", () => {
     expect((error as Error).message).not.toMatch(/cannot finish/i);
   });
 
-  test("AC4 — the decided week is the week of the final chop, from the league's own teams and cadence", () => {
+  test("006 AC4 — the decided week is the week of the final chop, from the league's own teams and cadence", () => {
     /**
      * N in "season decided in week N" is an observed fact, not a reading of the
      * calendar: `ceil((teams − 1) / chopsPerWeek)`, where `teams` is Sleeper's own
@@ -287,7 +287,7 @@ describe("a guillotine season stops at the week it is decided", () => {
     expect(fast.decidedInWeek).not.toBe(7); // floor(15 / 2) — the last chop is not free
   });
 
-  test("AC5 — the footer's two numbers come from the board: the week it is decided, and the releases left", () => {
+  test("006 AC5 — the footer's two numbers come from the board: the week it is decided, and the releases left", () => {
     // The CLI does no arithmetic of its own (CLAUDE.md), so both numbers the footer
     // states have to be on the board's diagnostics before it can print them.
     const { diagnostics } = guillotineBoard(3, 14);
@@ -322,7 +322,7 @@ describe("the standard league is untouched", () => {
     return buildWaiverBoard({ config, index, state, weekly, throughWeek: LAST_NFL_WEEK });
   }
 
-  test("AC6 — the standard league's board is byte-identical before and after this change", () => {
+  test("006 AC6 — the standard league's board is byte-identical before and after this change", () => {
     const board = standardBoard();
 
     // The horizon is the caller's, untouched: a standard room has no chop cadence to

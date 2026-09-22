@@ -100,7 +100,7 @@ function inactiveRingers(): Extra {
 }
 
 describe("the board the CLI prints", () => {
-  test("AC2 — a guillotine board refuses to guess the chop cadence", () => {
+  test("001 AC2 — a guillotine board refuses to guess the chop cadence", () => {
     const config = deriveLeagueConfig(leagueFixture());
     const { index } = buildPlayerIndex(playersFixture());
     const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week: 2 });
@@ -112,7 +112,7 @@ describe("the board the CLI prints", () => {
     ).toThrow(/chopsPerWeek/);
   });
 
-  test("AC1 — every row is an available player above replacement, priced in FAAB dollars", () => {
+  test("001 AC1 — every row is an available player above replacement, priced in FAAB dollars", () => {
     const { state, result } = board();
 
     expect(result.rows.length).toBeGreaterThan(0);
@@ -127,7 +127,7 @@ describe("the board the CLI prints", () => {
     expect([...vorps].sort((a, b) => b - a)).toEqual(vorps);
   });
 
-  test("AC7 — the printed dollars close over the rows that were priced, not over everyone", () => {
+  test("001 AC7 — the printed dollars close over the rows that were priced, not over everyone", () => {
     const { state, result } = board();
     const economy = result.diagnostics.economy;
     if (!economy) throw new Error("the fixture league has FAAB; this should not be null");
@@ -141,11 +141,11 @@ describe("the board the CLI prints", () => {
     expect(shown).toBeLessThanOrEqual(economy.pool);
   });
 
-  test("AC8 — two runs over the same payloads produce identical boards", () => {
+  test("001 AC8 — two runs over the same payloads produce identical boards", () => {
     expect(board().result).toEqual(board().result);
   });
 
-  test("AC5 — a chopped roster's players are priced as available", () => {
+  test("001 AC5 — a chopped roster's players are priced as available", () => {
     const { index, result } = board();
     const chopped = rostersFixture().find((r) => r.settings.eliminated != null);
 
@@ -160,7 +160,7 @@ describe("the board the CLI prints", () => {
     }
   });
 
-  test("AC10 — the board says how many rows it left below replacement", () => {
+  test("001 AC10 — the board says how many rows it left below replacement", () => {
     const { state, result } = board();
 
     expect(result.diagnostics.dropped.rowCount).toBe(
@@ -169,7 +169,7 @@ describe("the board the CLI prints", () => {
     expect(result.diagnostics.availablePool).toBe(state.availableIds.length);
   });
 
-  test("AC4 — replacement levels do not move when inactive players are in the payload", () => {
+  test("009 AC4 — replacement levels do not move when inactive players are in the payload", () => {
     // Every player in the fixture is `active: true`, so this board is byte-identical
     // to the one built before ticket 009 existed. It is the "before".
     const before = board().result.diagnostics.replacement;
