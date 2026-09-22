@@ -1,5 +1,5 @@
 import type { Logger } from "../ports.ts";
-import { scoreStatLine } from "../scoring/score.ts";
+import { isReportableStat, ruleFor, scoreStatLine } from "../scoring/score.ts";
 import type { PlayerIndex, WeeklyPoints } from "../types.ts";
 
 /** A weekly projection row, as the boundary schema produces it. */
@@ -24,6 +24,14 @@ export type ScoredWeek = {
   readonly unmatched: number;
   /** Rows belonging to a deliberately skipped inactive player that scored above zero. */
   readonly inactiveWithPoints: readonly InactiveWithPoints[];
+  /**
+   * The league's own scoring rules that no stat key in these rows reached. `fgm_50_59`
+   * sat on this list unspoken and cost every kicker 20%. Sorted and deduped, so two
+   * runs of the same inputs print the same report in the same order.
+   */
+  readonly unmatchedRules: readonly string[];
+  /** Stat keys carrying a non-zero value that no scoring rule reached. Sorted, deduped. */
+  readonly unmatchedStats: readonly string[];
 };
 
 /**
@@ -50,6 +58,8 @@ export function scoreWeeklyRows(args: {
   const weekly: WeeklyPoints[] = [];
   const unmatchedIds: string[] = [];
   const inactiveWithPoints: InactiveWithPoints[] = [];
+  const matchedRules = new Set<string>();
+  const unmatchedStats = new Set<string>();
 
   for (const row of rows) {
     if (!index.has(row.player_id)) {
@@ -72,6 +82,15 @@ export function scoreWeeklyRows(args: {
       week: row.week,
       points: scoreStatLine(row.stats, scoring),
     });
+    // The same question `scoreStatLine` asks of each key, asked again for the report.
+    // A key that scored is matched; one that carries a real value and scores nowhere
+    // is the silent drop this list exists to end. A zero is not evidence of anything.
+    for (const [stat, value] of Object.entries(row.stats)) {
+      if (!isReportableStat(stat)) continue;
+      const rule = ruleFor(stat, scoring);
+      if (rule !== undefined) matchedRules.add(rule.key);
+      else if (value !== 0) unmatchedStats.add(stat);
+    }
   }
 
   if (unmatchedIds.length > 0) {
@@ -84,7 +103,16 @@ export function scoreWeeklyRows(args: {
     });
   }
 
-  return { weekly, matched: weekly.length, unmatched: unmatchedIds.length, inactiveWithPoints };
+  return {
+    weekly,
+    matched: weekly.length,
+    unmatched: unmatchedIds.length,
+    inactiveWithPoints,
+    unmatchedRules: Object.keys(scoring)
+      .filter((rule) => !matchedRules.has(rule))
+      .sort(),
+    unmatchedStats: [...unmatchedStats].sort(),
+  };
 }
 
 /**
@@ -119,4 +147,39 @@ export function warnInactiveWithPoints(
   }
 
   return seen.size;
+}
+
+/**
+ * Fold one run's weeks into the single report the CLI prints, once.
+ *
+ * The two lists merge differently, and the asymmetry is the whole point:
+ *
+ *  - **stats UNION.** A key that scored nowhere in any week it appeared is unmatched
+ *    for the run. `fgm_50p` first appears in week 3; a report that only looked at the
+ *    first week priced would still be silent about it.
+ *  - **rules INTERSECT.** A rule is unmatched for the run only if EVERY week failed to
+ *    reach it. A union would name `fgm_60p` because week 12's rows happened to carry no
+ *    long kicks, and a diagnostic that cries wolf is one nobody reads — which is how
+ *    ticket 005's bug survived a clean-looking run.
+ */
+export function mergeUnmatched(weeks: readonly ScoredWeek[]): {
+  readonly unmatchedRules: readonly string[];
+  readonly unmatchedStats: readonly string[];
+} {
+  const stats = new Set<string>();
+  let rules: Set<string> | undefined;
+
+  for (const week of weeks) {
+    for (const stat of week.unmatchedStats) stats.add(stat);
+    const unmatchedHere = new Set(week.unmatchedRules);
+    rules =
+      rules === undefined
+        ? unmatchedHere
+        : new Set([...rules].filter((rule) => unmatchedHere.has(rule)));
+  }
+
+  return {
+    unmatchedRules: [...(rules ?? [])].sort(),
+    unmatchedStats: [...stats].sort(),
+  };
 }

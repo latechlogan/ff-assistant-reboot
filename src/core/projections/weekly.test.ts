@@ -3,7 +3,12 @@ import { leagueFixture, playersFixture, projectionsFixture } from "../../../test
 import { buildPlayerIndex } from "../players/index-players.ts";
 import type { LogLevel, Logger } from "../ports.ts";
 import type { IndexedPlayer, PlayerIndex } from "../types.ts";
-import { scoreWeeklyRows, warnInactiveWithPoints } from "./weekly.ts";
+import {
+  mergeUnmatched,
+  scoreWeeklyRows,
+  warnInactiveWithPoints,
+  type ScoredWeek,
+} from "./weekly.ts";
 
 /**
  * Ticket 001:
@@ -274,7 +279,7 @@ describe("accounting for every stat key and every scoring rule", () => {
         week: row.week,
         stats: row.stats,
       })),
-      index: buildPlayerIndex(playersFixture()),
+      index: buildPlayerIndex(playersFixture()).index,
       scoring: leagueFixture().scoring_settings,
     });
 
@@ -315,5 +320,58 @@ describe("accounting for every stat key and every scoring rule", () => {
     // Sorted and deduped, so two runs cannot print the same report in two orders.
     expect(scored.unmatchedRules).toEqual([...new Set(scored.unmatchedRules)].sort());
     expect(scored.unmatchedStats).toEqual([...new Set(scored.unmatchedStats)].sort());
+  });
+});
+
+/**
+ * Ticket 008, AC3 — "once per run". The CLI prices one week per as-of file and folds
+ * the weeks into the single report it prints; this is that fold. Written by the
+ * implementer, per docs/trust.md: it is wiring, not pricing math.
+ */
+describe("folding a run's weeks into one report", () => {
+  const week = (over: Partial<ScoredWeek>): ScoredWeek => ({
+    weekly: [],
+    matched: 0,
+    unmatched: 0,
+    inactiveWithPoints: [],
+    unmatchedRules: [],
+    unmatchedStats: [],
+    ...over,
+  });
+
+  test("AC3 — stat keys union across weeks: unmatched in any week is unmatched for the run", () => {
+    const merged = mergeUnmatched([
+      week({ unmatchedStats: ["fgmiss_40_49"] }),
+      week({ unmatchedStats: ["fgm_50p", "fgmiss_40_49"] }),
+    ]);
+
+    // `fgm_50p` first appears in week 3. Intersecting would lose it — the exact silence
+    // this ticket exists to end.
+    expect(merged.unmatchedStats).toEqual(["fgm_50p", "fgmiss_40_49"]);
+  });
+
+  test("AC3 — rules intersect across weeks: a rule that matched anywhere is not unmatched", () => {
+    const merged = mergeUnmatched([
+      week({ unmatchedRules: ["fgm_60p", "fgmiss", "sack"] }),
+      week({ unmatchedRules: ["fgmiss", "sack"] }), // fgm_60p matched in this week
+    ]);
+
+    // Unioning would name `fgm_60p` because ONE week's rows carried no long kick, and a
+    // diagnostic that cries wolf is one nobody reads.
+    expect(merged.unmatchedRules).toEqual(["fgmiss", "sack"]);
+  });
+
+  test("AC3 — the merged lists are sorted and deduped, so two runs print one order", () => {
+    const merged = mergeUnmatched([
+      week({ unmatchedRules: ["sack", "fgmiss"], unmatchedStats: ["fgmiss_50p", "fga"] }),
+      week({ unmatchedRules: ["fgmiss", "sack"], unmatchedStats: ["fga"] }),
+    ]);
+
+    expect(merged.unmatchedRules).toEqual(["fgmiss", "sack"]);
+    expect(merged.unmatchedStats).toEqual(["fga", "fgmiss_50p"]);
+  });
+
+  test("AC3 — a run with no weeks reports nothing rather than throwing", () => {
+    expect(mergeUnmatched([])).toEqual({ unmatchedRules: [], unmatchedStats: [] });
   });
 });

@@ -3,9 +3,11 @@ import { buildWaiverBoard } from "../../core/board/build.ts";
 import { deriveLeagueConfig } from "../../core/config/derive.ts";
 import { buildPlayerIndex } from "../../core/players/index-players.ts";
 import {
+  mergeUnmatched,
   scoreWeeklyRows,
   warnInactiveWithPoints,
   type InactiveWithPoints,
+  type ScoredWeek,
 } from "../../core/projections/weekly.ts";
 import { assertChopCadence, summarizeLeagueState } from "../../core/rosters/state.ts";
 import {
@@ -121,6 +123,7 @@ async function main(): Promise<void> {
   // Rest-of-season means every week still to come, each scored under this league's
   // own rules. One payload per week, each an as-of file.
   const weekly: WeeklyPoints[] = [];
+  const scoredWeeks: ScoredWeek[] = [];
   let unmatched = 0;
   const inactiveWithPoints: InactiveWithPoints[] = [];
   for (let w = week; w <= LAST_NFL_WEEK; w++) {
@@ -135,11 +138,14 @@ async function main(): Promise<void> {
       logger,
     });
     weekly.push(...scored.weekly);
+    scoredWeeks.push(scored);
     unmatched += scored.unmatched;
     inactiveWithPoints.push(...scored.inactiveWithPoints);
   }
-  // After the loop, so a player who scores in ten weeks is named once, not ten times.
+  // Both after the loop, so a player who scores in ten weeks is named once rather than
+  // ten times, and the report is the run's, not fifteen copies of one week's.
   warnInactiveWithPoints(inactiveWithPoints, logger);
+  const neverMatched = mergeUnmatched(scoredWeeks);
 
   const board = buildWaiverBoard({
     config,
@@ -165,6 +171,7 @@ async function main(): Promise<void> {
     leagueKey: entry.key,
     all: values.all,
     skippedInactive: inactive.size,
+    neverMatched,
   });
 }
 
@@ -177,6 +184,7 @@ function print(
     all: boolean;
     /** Players Sleeper calls inactive, left out of the index (ticket 009). */
     skippedInactive: number;
+    neverMatched: ReturnType<typeof mergeUnmatched>;
   },
 ): void {
   const { diagnostics } = board;
@@ -245,5 +253,14 @@ function print(
         `\nIt is not what he will cost — a bid range comes later.`,
     );
   }
+  // Printed every run, empty or not: a diagnostic that only appears when it fires is
+  // one nobody learns to read, and this silence already cost every kicker 20% once.
+  const { unmatchedRules, unmatchedStats } = opts.neverMatched;
+  const named = (keys: readonly string[]): string => (keys.length > 0 ? keys.join(", ") : "none");
+  console.log(
+    `\nnever scored, across every week priced` +
+      `\n  league rules no stat key reached: ${named(unmatchedRules)}` +
+      `\n  stat keys no league rule scored: ${named(unmatchedStats)}`,
+  );
   console.log("");
 }
