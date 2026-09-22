@@ -8,3 +8,6 @@ reports/
 
 # Stryker scratch; it survives a crashed run.
 .stryker-tmp/
+
+# Subagent worktrees live inside the repo; they are checkouts, not content.
+.claude/worktrees/

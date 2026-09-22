@@ -12,3 +12,7 @@ node_modules
 test/fixtures/
 
 .stryker-tmp
+
+# Subagent worktrees: a full checkout of this repo under .claude/. Each one
+# formats itself; from here they are somebody else's tree.
+.claude/worktrees/

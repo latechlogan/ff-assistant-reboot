@@ -11,7 +11,17 @@ import tseslint from "typescript-eslint";
  * reach the network, the filesystem, the clock, or the environment.
  */
 export default tseslint.config(
-  { ignores: ["node_modules", "docs/graph.md", "coverage", "reports", ".stryker-tmp"] },
+  {
+    ignores: [
+      "node_modules",
+      "docs/graph.md",
+      "coverage",
+      "reports",
+      ".stryker-tmp",
+      // Subagent worktrees: full checkouts of this repo, linted in their own tree.
+      ".claude/worktrees",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
