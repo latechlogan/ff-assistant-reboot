@@ -9,10 +9,12 @@ import {
   PlayerMapSchema,
   ProjectionsSchema,
   RostersSchema,
+  TransactionsSchema,
   type League,
   type Player,
   type ProjectionRow,
   type Roster,
+  type Transaction,
 } from "./schemas.ts";
 import type { ZodType } from "zod";
 
@@ -146,6 +148,32 @@ export class SleeperSource {
       kind: `rosters-${leagueKey}-wk${String(week).padStart(2, "0")}`,
       url: `${BASE}/v1/league/${leagueId}/rosters`,
       schema: RostersSchema,
+      policy,
+    });
+  }
+
+  /**
+   * A league week's transactions. Read to answer one question today — have this
+   * week's waivers already run? (tickets/004, AC6) — and the same payload is what the
+   * measured bid range will be built from later.
+   *
+   * Worth knowing when calling it: this is the one payload whose AGE changes the
+   * answer. A cached copy pulled before the waiver run says "not cleared" forever, so
+   * the guard asks for it fresh (`refresh`, `requireFresh`) and fails rather than fall
+   * back. Every other payload here is happy to be yesterday's.
+   */
+  transactions(
+    season: string,
+    leagueKey: string,
+    leagueId: string,
+    week: number,
+    policy: FetchPolicy = {},
+  ): Promise<AsOf<Transaction[]>> {
+    return this.load({
+      season,
+      kind: `transactions-${leagueKey}-wk${String(week).padStart(2, "0")}`,
+      url: `${BASE}/v1/league/${leagueId}/transactions/${week}`,
+      schema: TransactionsSchema,
       policy,
     });
   }

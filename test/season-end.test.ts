@@ -339,7 +339,18 @@ describe("the standard league is untouched", () => {
      * Regenerate ONLY with Logan's say-so: a changed digest here is the ticket
      * overreaching, not a stale expectation.
      */
-    const serialized = JSON.stringify({ everyRow: board.everyRow, diagnostics: board.diagnostics });
+    /**
+     * tickets/004 replaced the `belowReplacement` count in these diagnostics with
+     * `dropped { rowCount, valueSum }`. The digest is deliberately NOT regenerated for
+     * that: it is still the pre-rename shape, restored here from the new one. If the
+     * rename had moved a single number rather than only a key, putting the old key
+     * back would not bring the old digest back with it.
+     */
+    const { dropped, ...rest } = board.diagnostics;
+    const serialized = JSON.stringify({
+      everyRow: board.everyRow,
+      diagnostics: { ...rest, belowReplacement: dropped.rowCount },
+    });
     expect(createHash("sha256").update(serialized).digest("hex")).toBe(
       "3583ec89ab03fd5eb168187cc3ea1555d013f9cad735f5675fee947e37a55d50",
     );

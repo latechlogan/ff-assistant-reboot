@@ -67,6 +67,26 @@ export type Roster = z.infer<typeof RosterSchema>;
 export const RostersSchema = z.array(RosterSchema);
 
 /**
+ * One transaction in a league week: a waiver claim, a free-agent pickup or a trade.
+ *
+ * Fetched per week, and only ever to answer one question — have this week's waivers
+ * run yet? (tickets/004, AC6.) So only `type` and `status` are strict; `leg` (the
+ * week) is kept because the URL already scopes the request and a mismatch would mean
+ * we are reading the feed wrong. Everything else — the roster ids, the adds and
+ * drops, the winning bid — passes through untouched, and the bid-range work
+ * (ROADMAP item 5) is what will read it.
+ *
+ * Shape measured against the live API 2026-09-22.
+ */
+export const TransactionSchema = z.looseObject({
+  type: z.string(),
+  status: z.string(),
+  leg: z.number().int().nullish(),
+});
+export type Transaction = z.infer<typeof TransactionSchema>;
+export const TransactionsSchema = z.array(TransactionSchema);
+
+/**
  * A weekly projection row. `stats` is a bag of raw stat lines, scored locally —
  * `pts_*` fields exist in the payload and are deliberately never read.
  *

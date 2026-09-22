@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { boardArtifact, serializeBoard } from "../src/core/board/artifact.ts";
 import { buildWaiverBoard } from "../src/core/board/build.ts";
 import { deriveLeagueConfig } from "../src/core/config/derive.ts";
 import { buildPlayerIndex, type PlayerPayload } from "../src/core/players/index-players.ts";
@@ -158,7 +159,7 @@ describe("the board the CLI prints", () => {
   test("AC10 — the board says how many rows it left below replacement", () => {
     const { state, result } = board();
 
-    expect(result.diagnostics.belowReplacement).toBe(
+    expect(result.diagnostics.dropped.rowCount).toBe(
       state.availableIds.length - result.rows.length,
     );
     expect(result.diagnostics.availablePool).toBe(state.availableIds.length);
@@ -271,5 +272,95 @@ describe("positions with no real market", () => {
 
     const values = board.rows.map((row) => row.value ?? 0);
     expect([...values].sort((a, b) => b - a)).toEqual(values);
+  });
+});
+
+/**
+ * The frozen artifact (tickets/004): the board as it reaches disk, over the same real
+ * fixtures the pipeline above uses. The store's own tests cover paths and refusals;
+ * what is left to prove here is that the file accounts for every dollar and that the
+ * clock is the only thing that moves between two runs.
+ */
+describe("the board as it is frozen", () => {
+  const INPUTS = ["raw/2026/nfl-state--x.json", "raw/2026/league-chopped--x.json"];
+
+  function artifact(generatedAt = "2026-09-22T15:00:00.000Z") {
+    const { index, result, state } = board();
+    return {
+      state,
+      result,
+      board: boardArtifact({
+        board: result,
+        index,
+        leagueKey: "chopped",
+        season: "2026",
+        generatedAt,
+        inputs: INPUTS,
+      }),
+    };
+  }
+
+  test("AC3 — the file holds only the decisions, and accounts for everything it left out", () => {
+    const { state, result, board: frozen } = artifact();
+
+    // Exactly the available players above replacement: the week's actual decisions.
+    expect(frozen.rows).toHaveLength(result.rows.length);
+    for (const row of frozen.rows) {
+      expect(state.rosteredIds.has(row.playerId)).toBe(false);
+      expect(row.vorp).toBeGreaterThan(0);
+      expect(row.name).not.toBe(""); // a name, not an id — the file is read by a human
+    }
+
+    // And the pool it came out of is fully accounted for by the file alone.
+    const dropped = frozen.diagnostics.dropped;
+    expect(dropped.rowCount).toBe(frozen.diagnostics.availablePool - frozen.rows.length);
+    expect(dropped.rowCount).toBeGreaterThan(0); // the fixtures do drop rows
+    expect(dropped.valueSum).not.toBeNull(); // this league has FAAB
+  });
+
+  test("AC4 — the economy closes from the file alone", () => {
+    const { board: frozen } = artifact();
+    const { economy, dropped } = frozen.diagnostics;
+    if (!economy) throw new Error("the fixture league has FAAB; this should not be null");
+
+    const shown = frozen.rows.reduce((sum, row) => sum + (row.value ?? 0), 0);
+
+    /**
+     * The identity, stated in the file's own numbers. The floor every available
+     * player is guaranteed is `pool − distributable`; the rest of the pool is spread
+     * over the whole season's supply, of which this week's available players are
+     * `availableVorp / supply`. The remainder is not missing — it is held for the
+     * rosters that future chops will release.
+     */
+    const reserve = economy.pool - economy.distributable;
+    const expected = reserve + (economy.distributable * economy.availableVorp) / economy.supply;
+
+    expect(shown + (dropped.valueSum ?? 0)).toBeCloseTo(expected, 2);
+    // And nothing the board says anyone is worth can exceed the money in the room.
+    expect(shown + (dropped.valueSum ?? 0)).toBeLessThanOrEqual(economy.pool);
+  });
+
+  test("AC5 — two builds from the same inputs are byte-identical once generatedAt is removed", () => {
+    const withoutClock = (json: string): string =>
+      json.replace(/^\s*"generatedAt".*$/m, '"generatedAt": ""');
+
+    const first = serializeBoard(artifact("2026-09-22T15:00:00.000Z").board);
+    const second = serializeBoard(artifact("2026-09-23T04:31:59.999Z").board);
+
+    expect(first).not.toBe(second); // the clock did move, or this proves nothing
+    expect(withoutClock(first)).toBe(withoutClock(second));
+  });
+
+  test("AC2 — the envelope carries what a rebuild needs, and nothing it cannot name", () => {
+    const { board: frozen } = artifact();
+
+    expect(frozen.schemaVersion).toBeGreaterThan(0);
+    expect(frozen.leagueKey).toBe("chopped");
+    expect(frozen.season).toBe("2026");
+    expect(frozen.week).toBe(frozen.diagnostics.week);
+    expect(frozen.inputs).toEqual(INPUTS);
+    // Serializing is where the outbound schema is enforced, so a board the schema
+    // rejects can never reach a file.
+    expect(() => serializeBoard({ ...frozen, week: -1 })).toThrow();
   });
 });

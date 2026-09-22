@@ -1,8 +1,9 @@
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
-import { DataRootError, Store } from "./store.ts";
+import { BOARD_SCHEMA_VERSION, type Board } from "../../core/board/artifact.ts";
+import { BoardLockedError, DataRootError, Store } from "./store.ts";
 
 /** A throwaway data root per test — these are adapter tests, so real files are the point. */
 function newRoot(): string {
@@ -129,5 +130,206 @@ describe("league registry", () => {
     writeFileSync(path.join(root, "leagues.json"), JSON.stringify({ season: "26", leagues: [] }));
 
     expect(() => new Store(root).leagues()).toThrow(DataRootError);
+  });
+});
+
+/**
+ * Frozen boards (tickets/004, AC1–AC7).
+ *
+ * A board is the one artifact this project writes on purpose, so the store's job here
+ * is narrow and testable: the path rule, refusing to clobber one, and refusing to read
+ * a file this build does not understand.
+ */
+
+/**
+ * A minimal board whose economy closes, so a test that breaks the identity has to
+ * break it deliberately. The floor is 0, so `pool` and `distributable` are the same
+ * number; a fifth of the season's supply is available this week, so a fifth of the
+ * pool is what the rows are worth: 100 × 20 / 100 = $20.
+ */
+function sampleBoard(overrides: Partial<Board> = {}): Board {
+  return {
+    schemaVersion: BOARD_SCHEMA_VERSION,
+    leagueKey: "chopped",
+    season: "2026",
+    week: 3,
+    generatedAt: "2026-09-22T15:00:00.000Z",
+    inputs: ["raw/2026/nfl-state--2026-09-22T14-44-54-304Z.json"],
+    diagnostics: {
+      week: 3,
+      throughWeek: 15,
+      liveTeams: 14,
+      choppedTeams: 2,
+      availablePool: 3,
+      replacement: { QB: 10, RB: 9, WR: 8, TE: 7, K: 6 },
+      survivalWeights: [1, 0.9],
+      floorPositions: ["K"],
+      economy: {
+        pool: 100,
+        distributable: 100,
+        availableVorp: 20,
+        rosteredVorpPerTeam: 40,
+        chopsRemaining: 2,
+        supply: 100,
+        dollarsPerVorp: 1,
+      },
+      dropped: { rowCount: 2, valueSum: 0 },
+    },
+    rows: [
+      {
+        playerId: "4034",
+        name: "Player One",
+        team: "KC",
+        position: "RB",
+        points: 100,
+        vorp: 20,
+        value: 20,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe("frozen boards", () => {
+  let root: string;
+  let store: Store;
+
+  beforeEach(() => {
+    root = newRoot();
+    store = new Store(root);
+  });
+
+  test("AC1 — a board freezes at boards/<season>/wk<NN>-<league>.json and says where", () => {
+    const written = store.writeBoard(sampleBoard());
+
+    expect(written.file).toBe(path.join("boards", "2026", "wk03-chopped.json"));
+    expect(written.overwrote).toBe(false);
+    expect(existsSync(path.join(root, written.file))).toBe(true);
+  });
+
+  test("AC1 — the week is zero-padded, so week 3 and week 13 never share a name", () => {
+    const three = store.writeBoard(sampleBoard());
+    const thirteen = store.writeBoard(sampleBoard({ week: 13 }));
+
+    expect(three.file).toContain("wk03-");
+    expect(thirteen.file).toContain("wk13-");
+  });
+
+  test("AC2 — an envelope that fails the outbound schema writes nothing at all", () => {
+    const broken = sampleBoard({
+      // A row with no name: the file exists to be read by a human, and an id is not
+      // a player. This has to be caught before anything reaches the disk.
+      rows: [{ playerId: "4034", position: "RB", points: 1, vorp: 1, value: 1 } as never],
+    });
+
+    expect(() => store.writeBoard(broken)).toThrow();
+    expect(existsSync(path.join(root, "boards", "2026", "wk03-chopped.json"))).toBe(false);
+  });
+
+  test("AC2 — every field of the envelope survives the round trip", () => {
+    const board = sampleBoard();
+    store.writeBoard(board);
+
+    expect(store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toEqual(board);
+  });
+
+  test("AC6 — an existing board is never overwritten unless the caller says it may", () => {
+    store.writeBoard(sampleBoard());
+    const later = sampleBoard({ generatedAt: "2026-09-22T16:00:00.000Z" });
+
+    // The caller is the one that knows whether this week's claims have cleared. The
+    // store's job is to make an overwrite impossible to do by accident.
+    expect(() => store.writeBoard(later)).toThrow(BoardLockedError);
+
+    const again = store.writeBoard(later, { overwrite: true });
+    expect(again.overwrote).toBe(true);
+    expect(store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" }).generatedAt).toBe(
+      "2026-09-22T16:00:00.000Z",
+    );
+  });
+
+  test("AC7 — a board from an unknown schema version is refused, naming the file and both versions", () => {
+    const file = path.join("boards", "2026", "wk03-chopped.json");
+    mkdirSync(path.join(root, "boards", "2026"), { recursive: true });
+    writeFileSync(
+      path.join(root, file),
+      JSON.stringify({ ...sampleBoard(), schemaVersion: BOARD_SCHEMA_VERSION + 1 }),
+    );
+
+    let thrown: unknown;
+    try {
+      store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(DataRootError);
+    const message = (thrown as Error).message;
+    expect(message).toContain(file);
+    expect(message).toContain(String(BOARD_SCHEMA_VERSION + 1));
+    expect(message).toContain(String(BOARD_SCHEMA_VERSION));
+  });
+
+  test("AC7 — the version is checked before the rest of the file is parsed", () => {
+    // A version-2 file might hold rows this build cannot even describe. Meeting one
+    // and reporting a row-shape error would send the reader hunting the wrong bug.
+    mkdirSync(path.join(root, "boards", "2026"), { recursive: true });
+    writeFileSync(
+      path.join(root, "boards", "2026", "wk03-chopped.json"),
+      JSON.stringify({ schemaVersion: BOARD_SCHEMA_VERSION + 1, rows: "not even an array" }),
+    );
+
+    expect(() => store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toThrow(
+      new RegExp(`version ${BOARD_SCHEMA_VERSION + 1}`),
+    );
+  });
+
+  test("AC4 — every load checks that the economy closes, and refuses a board that does not", () => {
+    const file = path.join("boards", "2026", "wk03-chopped.json");
+    mkdirSync(path.join(root, "boards", "2026"), { recursive: true });
+    const board = sampleBoard();
+    // One dollar quietly taken off the only row. Nothing else in the file changes,
+    // so only the identity can catch it.
+    writeFileSync(
+      path.join(root, file),
+      JSON.stringify({
+        ...board,
+        rows: [{ ...(board.rows[0] as Board["rows"][number]), value: 19 }],
+      }),
+    );
+
+    expect(() => store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toThrow(
+      /econom/i,
+    );
+  });
+
+  test("AC4 — a league with no FAAB has no economy to close, and loads anyway", () => {
+    const board = sampleBoard({
+      diagnostics: {
+        ...sampleBoard().diagnostics,
+        economy: null,
+        dropped: { rowCount: 2, valueSum: null },
+      },
+      rows: [
+        {
+          playerId: "4034",
+          name: "Player One",
+          team: "KC",
+          position: "RB",
+          points: 100,
+          vorp: 20,
+          value: null,
+        },
+      ],
+    });
+    store.writeBoard(board);
+
+    expect(store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toEqual(board);
+  });
+
+  test("AC6 — asking whether a week is already frozen never reads the board back", () => {
+    expect(store.hasBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toBe(false);
+    store.writeBoard(sampleBoard());
+    expect(store.hasBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toBe(true);
   });
 });

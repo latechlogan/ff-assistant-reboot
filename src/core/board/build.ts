@@ -49,8 +49,19 @@ export type BoardDiagnostics = {
     readonly supply: number;
     readonly dollarsPerVorp: number;
   } | null;
-  /** Rows left off the printed board because they are at or below replacement. */
-  readonly belowReplacement: number;
+  /**
+   * The rows left off the board because they are at or below replacement — counted,
+   * and with their dollars totalled.
+   *
+   * The frozen board keeps only the decisions, so without this the money that went to
+   * everyone else would simply be missing from the file, and the economy could no
+   * longer be checked from the file alone (tickets/004, AC3).
+   */
+  readonly dropped: {
+    readonly rowCount: number;
+    /** Σ `value` over the dropped rows; null when the league has no FAAB currency. */
+    readonly valueSum: number | null;
+  };
 };
 
 export type WaiverBoard = {
@@ -206,6 +217,7 @@ export function buildWaiverBoard(args: {
     );
 
   const claimable = rows.filter((row) => row.vorp > 0);
+  const dropped = rows.filter((row) => row.vorp <= 0);
 
   return {
     rows: claimable,
@@ -220,7 +232,11 @@ export function buildWaiverBoard(args: {
       survivalWeights: weights,
       floorPositions,
       economy: allocation?.diagnostics ?? null,
-      belowReplacement: rows.length - claimable.length,
+      dropped: {
+        rowCount: dropped.length,
+        valueSum:
+          allocation === null ? null : dropped.reduce((sum, row) => sum + (row.value ?? 0), 0),
+      },
     },
   };
 }

@@ -1,6 +1,13 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import {
+  BOARD_SCHEMA_VERSION,
+  BoardSchema,
+  assertEconomyCloses,
+  serializeBoard,
+  type Board,
+} from "../../core/board/artifact.ts";
 import type { AsOf } from "../../core/ports.ts";
 import { PRICED_POSITIONS } from "../../core/types.ts";
 
@@ -72,6 +79,16 @@ export function stampFrom(iso: string): string {
 }
 
 export class DataRootError extends Error {}
+
+/** Raised when a board already exists and the caller has not said it may be replaced. */
+export class BoardLockedError extends Error {}
+
+/** Which league-week a frozen board belongs to. */
+export type BoardKey = {
+  season: string;
+  week: number;
+  leagueKey: string;
+};
 
 export class Store {
   readonly root: string;
@@ -152,6 +169,98 @@ export class Store {
       source: parsed.data.source,
       file,
     };
+  }
+
+  /**
+   * Where a league-week's frozen board lives: boards/<season>/wk<NN>-<league>.json.
+   *
+   * One file per league-week, zero-padded so week 3 and week 13 can never collide and
+   * so a directory listing sorts into season order. Unlike an as-of file this name
+   * carries no timestamp: there is exactly one board per league-week, and replacing it
+   * is a decision (see `writeBoard`), not an accident of when the command was run.
+   */
+  boardPath(key: BoardKey): string {
+    const wk = String(key.week).padStart(2, "0");
+    return path.join("boards", key.season, `wk${wk}-${key.leagueKey}.json`);
+  }
+
+  /** Is this league-week already frozen? Asked without reading the board back. */
+  hasBoard(key: BoardKey): boolean {
+    return existsSync(path.join(this.root, this.boardPath(key)));
+  }
+
+  /**
+   * Freeze a board. Validates the whole envelope first, so a board that fails its own
+   * schema writes nothing at all.
+   *
+   * An existing board is NEVER replaced unless the caller passes `overwrite`. The
+   * store cannot tell whether this week's claims have cleared — that takes a fetch,
+   * and this module makes no network calls — so it refuses by default and leaves the
+   * judgment to the one caller that can make it (docs/brief.md, Delivery; the CLI).
+   */
+  writeBoard(
+    board: Board,
+    opts: { overwrite?: boolean } = {},
+  ): { file: string; overwrote: boolean } {
+    const file = this.boardPath({
+      season: board.season,
+      week: board.week,
+      leagueKey: board.leagueKey,
+    });
+    const absolute = path.join(this.root, file);
+
+    // Before the directory is created, before anything touches the disk.
+    const json = serializeBoard(board);
+
+    const overwrote = existsSync(absolute);
+    if (overwrote && opts.overwrite !== true) {
+      throw new BoardLockedError(
+        `${file} is already frozen, and nothing said it may be replaced. ` +
+          `A frozen board may be overwritten before that week's claims clear, never after.`,
+      );
+    }
+
+    mkdirSync(path.dirname(absolute), { recursive: true });
+    writeFileSync(absolute, json);
+    return { file, overwrote };
+  }
+
+  /**
+   * Read a frozen board back — for Logan, for a test, for later analysis.
+   *
+   * NOT for pricing: a board is a record, not an input (docs/data-model.md), and no
+   * code path that prices a week may call this.
+   */
+  readBoard(key: BoardKey): Board {
+    const file = this.boardPath(key);
+    const absolute = path.join(this.root, file);
+    if (!existsSync(absolute)) {
+      throw new DataRootError(`no frozen board at ${file}.`);
+    }
+    const raw: unknown = JSON.parse(readFileSync(absolute, "utf8"));
+
+    // The version is checked on its own, FIRST. A version this build does not know
+    // may hold fields it cannot describe, and reporting a row-shape error about them
+    // would send the reader hunting the wrong bug.
+    const found = (raw as { schemaVersion?: unknown } | null)?.schemaVersion;
+    if (found !== BOARD_SCHEMA_VERSION) {
+      throw new DataRootError(
+        `${file} is board schema version ${String(found)}; this build reads version ` +
+          `${BOARD_SCHEMA_VERSION}. Frozen boards are never migrated — past weeks are ` +
+          `immutable — so read it with the build that wrote it.`,
+      );
+    }
+
+    const parsed = BoardSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new DataRootError(
+        `${file} is not a board this build can read:\n${parsed.error.message}`,
+      );
+    }
+    // Every load, not only the run that wrote it: a board whose dollars no longer add
+    // up is a corrupt record, and a silently wrong record is worse than a missing one.
+    assertEconomyCloses(parsed.data, file);
+    return parsed.data;
   }
 
   /** Which leagues this data root knows about. League ids never live in the code repo. */
