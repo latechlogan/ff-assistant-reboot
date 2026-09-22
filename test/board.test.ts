@@ -304,7 +304,7 @@ describe("the board as it is frozen", () => {
     };
   }
 
-  test("AC3 — the file holds only the decisions, and accounts for everything it left out", () => {
+  test("004 AC3 — the file holds only the decisions, and accounts for everything it left out", () => {
     const { state, result, board: frozen } = artifact();
 
     // Exactly the available players above replacement: the week's actual decisions.
@@ -322,7 +322,7 @@ describe("the board as it is frozen", () => {
     expect(dropped.valueSum).not.toBeNull(); // this league has FAAB
   });
 
-  test("AC4 — the economy closes from the file alone", () => {
+  test("004 AC4 — the economy closes from the file alone", () => {
     const { board: frozen } = artifact();
     const { economy, dropped } = frozen.diagnostics;
     if (!economy) throw new Error("the fixture league has FAAB; this should not be null");
@@ -344,7 +344,7 @@ describe("the board as it is frozen", () => {
     expect(shown + (dropped.valueSum ?? 0)).toBeLessThanOrEqual(economy.pool);
   });
 
-  test("AC3 — with a floor, every dropped row is worth exactly the floor, and the economy still closes", () => {
+  test("004 AC3 — with a floor, every dropped row is worth exactly the floor, and the economy still closes", () => {
     // The fixture room and both live rooms bid from $0, where a dropped row is worth
     // $0 and a `valueSum` hardcoded to 0 would pass everything. A $1 floor makes the
     // dropped rows carry real money, so the sum has to be computed to be right.
@@ -365,7 +365,7 @@ describe("the board as it is frozen", () => {
     );
   });
 
-  test("AC5 — two builds from the same inputs are byte-identical once generatedAt is removed", () => {
+  test("004 AC5 — two builds from the same inputs are byte-identical once generatedAt is removed", () => {
     const withoutClock = (json: string): string =>
       json.replace(/^\s*"generatedAt".*$/m, '"generatedAt": ""');
 
@@ -376,7 +376,7 @@ describe("the board as it is frozen", () => {
     expect(withoutClock(first)).toBe(withoutClock(second));
   });
 
-  test("AC2 — the envelope carries what a rebuild needs, and nothing it cannot name", () => {
+  test("004 AC2 — the envelope carries what a rebuild needs, and nothing it cannot name", () => {
     const { board: frozen } = artifact();
 
     expect(frozen.schemaVersion).toBeGreaterThan(0);

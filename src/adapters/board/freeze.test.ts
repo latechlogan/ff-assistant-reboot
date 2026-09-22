@@ -88,7 +88,7 @@ describe("freezing a board", () => {
     store = new Store(root);
   });
 
-  test("AC1 — the current week, claims pending, nothing frozen yet: FROZE", async () => {
+  test("004 AC1 — the current week, claims pending, nothing frozen yet: FROZE", async () => {
     const outcome = await freeze({
       artifact: board(),
       currentWeek: 4,
@@ -101,7 +101,7 @@ describe("freezing a board", () => {
     expect(store.hasBoard({ season: "2026", week: 4, leagueKey: "chopped" })).toBe(true);
   });
 
-  test("AC6 — claims still pending: an existing board is replaced, and says OVERWROTE", async () => {
+  test("004 AC6 — claims still pending: an existing board is replaced, and says OVERWROTE", async () => {
     store.writeBoard(board());
     const newer = board({ generatedAt: "2026-09-29T16:00:00.000Z" });
 
@@ -117,7 +117,7 @@ describe("freezing a board", () => {
     expect(readFileSync(path.join(root, file), "utf8")).toContain("2026-09-29T16:00:00.000Z");
   });
 
-  test("AC6 — claims cleared: an existing board is refused, and left byte-for-byte alone", async () => {
+  test("004 AC6 — claims cleared: an existing board is refused, and left byte-for-byte alone", async () => {
     store.writeBoard(board());
     const before = readFileSync(path.join(root, file), "utf8");
 
@@ -133,7 +133,7 @@ describe("freezing a board", () => {
     expect(readFileSync(path.join(root, file), "utf8")).toBe(before);
   });
 
-  test("AC6 — claims cleared before the first run: nothing is frozen, so no post-claims record exists to lock", async () => {
+  test("004 AC6 — claims cleared before the first run: nothing is frozen, so no post-claims record exists to lock", async () => {
     const outcome = await freeze({
       artifact: board(),
       currentWeek: 4,
@@ -146,7 +146,7 @@ describe("freezing a board", () => {
     expect(store.hasBoard({ season: "2026", week: 4, leagueKey: "chopped" })).toBe(false);
   });
 
-  test("AC6 — the claims question is always asked fresh, never answered from a cached file", async () => {
+  test("004 AC6 — the claims question is always asked fresh, never answered from a cached file", async () => {
     // A copy pulled before the waiver run says "not cleared" for the rest of the week,
     // which is the one answer that lets a record be destroyed.
     const source = stubSource(PENDING);
@@ -156,7 +156,7 @@ describe("freezing a board", () => {
     expect(source.policies).toEqual([{ refresh: true, requireFresh: true }]);
   });
 
-  test("AC6 — a past week is never frozen, and Sleeper is never asked", async () => {
+  test("004 AC6 — a past week is never frozen, and Sleeper is never asked", async () => {
     const source = stubSource(PENDING);
 
     const outcome = await freeze({

@@ -11,19 +11,19 @@ import { claimsHaveCleared, type ClaimRecord } from "./cleared.ts";
 const waiver = (status: string): ClaimRecord => ({ type: "waiver", status });
 
 describe("whether a week's waivers have already run", () => {
-  test("AC6 — a completed waiver claim means the week's claims have cleared", () => {
+  test("004 AC6 — a completed waiver claim means the week's claims have cleared", () => {
     expect(claimsHaveCleared([waiver("complete")])).toBe(true);
   });
 
-  test("AC6 — a failed waiver claim means they cleared too: someone was outbid", () => {
+  test("004 AC6 — a failed waiver claim means they cleared too: someone was outbid", () => {
     expect(claimsHaveCleared([waiver("failed")])).toBe(true);
   });
 
-  test("AC6 — a claim still sitting in the queue has not cleared", () => {
+  test("004 AC6 — a claim still sitting in the queue has not cleared", () => {
     expect(claimsHaveCleared([waiver("pending"), waiver("processing")])).toBe(false);
   });
 
-  test("AC6 — a free-agent pickup is not a waiver run, however it ended", () => {
+  test("004 AC6 — a free-agent pickup is not a waiver run, however it ended", () => {
     expect(
       claimsHaveCleared([
         { type: "free_agent", status: "complete" },
@@ -32,13 +32,13 @@ describe("whether a week's waivers have already run", () => {
     ).toBe(false);
   });
 
-  test("AC6 — one settled claim among many pending ones is enough", () => {
+  test("004 AC6 — one settled claim among many pending ones is enough", () => {
     expect(claimsHaveCleared([waiver("pending"), waiver("complete"), waiver("pending")])).toBe(
       true,
     );
   });
 
-  test("AC6 — a week nobody claimed in never locks, and that is the accepted gap", () => {
+  test("004 AC6 — a week nobody claimed in never locks, and that is the accepted gap", () => {
     // Known and accepted (tickets/004, AC6): with no waiver transaction there is
     // nothing to observe, so the board stays overwritable all week. Tolerable,
     // because a week with no claims is a week whose board said "nothing to claim".

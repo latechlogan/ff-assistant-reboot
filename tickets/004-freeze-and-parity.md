@@ -135,7 +135,8 @@ the replacement definition (003), the standard league's board (item 3), or the g
 - **AC7** — Unknown versions refused. `readBoard` on a file whose `schemaVersion` isn't
   the current one throws, naming the file and both versions. It never parses part of the
   file.
-- **AC8** — Parity on week 3. `scripts/parity.ts` compares our frozen
+- **AC8** — Parity on week 3 (proved by the recorded parity run, 519c815 and DECISIONS.md
+  2026-09-22 — see "How AC8 was met" below; a one-time comparison, not a test). `scripts/parity.ts` compares our frozen
   `boards/2026/wk03-chopped.json` with the old tool's
   `../ff-assistant/data/snapshots/waivers/2026-wk03-chopped.json` and prints:
   - **input agreement:** `liveTeams`, the FAAB pool, the available-pool size and the

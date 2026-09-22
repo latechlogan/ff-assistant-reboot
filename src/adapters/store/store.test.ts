@@ -202,7 +202,7 @@ describe("frozen boards", () => {
     store = new Store(root);
   });
 
-  test("AC1 — a board freezes at boards/<season>/wk<NN>-<league>.json and says where", () => {
+  test("004 AC1 — a board freezes at boards/<season>/wk<NN>-<league>.json and says where", () => {
     const written = store.writeBoard(sampleBoard());
 
     expect(written.file).toBe(path.join("boards", "2026", "wk03-chopped.json"));
@@ -210,7 +210,7 @@ describe("frozen boards", () => {
     expect(existsSync(path.join(root, written.file))).toBe(true);
   });
 
-  test("AC1 — the week is zero-padded, so week 3 and week 13 never share a name", () => {
+  test("004 AC1 — the week is zero-padded, so week 3 and week 13 never share a name", () => {
     const three = store.writeBoard(sampleBoard());
     const thirteen = store.writeBoard(sampleBoard({ week: 13 }));
 
@@ -218,7 +218,7 @@ describe("frozen boards", () => {
     expect(thirteen.file).toContain("wk13-");
   });
 
-  test("AC2 — an envelope that fails the outbound schema writes nothing at all", () => {
+  test("004 AC2 — an envelope that fails the outbound schema writes nothing at all", () => {
     const broken = sampleBoard({
       // A row with no name: the file exists to be read by a human, and an id is not
       // a player. This has to be caught before anything reaches the disk.
@@ -229,14 +229,14 @@ describe("frozen boards", () => {
     expect(existsSync(path.join(root, "boards", "2026", "wk03-chopped.json"))).toBe(false);
   });
 
-  test("AC2 — every field of the envelope survives the round trip", () => {
+  test("004 AC2 — every field of the envelope survives the round trip", () => {
     const board = sampleBoard();
     store.writeBoard(board);
 
     expect(store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toEqual(board);
   });
 
-  test("AC6 — an existing board is never overwritten unless the caller says it may", () => {
+  test("004 AC6 — an existing board is never overwritten unless the caller says it may", () => {
     store.writeBoard(sampleBoard());
     const later = sampleBoard({ generatedAt: "2026-09-22T16:00:00.000Z" });
 
@@ -251,7 +251,7 @@ describe("frozen boards", () => {
     );
   });
 
-  test("AC7 — a board from an unknown schema version is refused, naming the file and both versions", () => {
+  test("004 AC7 — a board from an unknown schema version is refused, naming the file and both versions", () => {
     const file = path.join("boards", "2026", "wk03-chopped.json");
     mkdirSync(path.join(root, "boards", "2026"), { recursive: true });
     writeFileSync(
@@ -273,7 +273,7 @@ describe("frozen boards", () => {
     expect(message).toContain(String(BOARD_SCHEMA_VERSION));
   });
 
-  test("AC7 — the version is checked before the rest of the file is parsed", () => {
+  test("004 AC7 — the version is checked before the rest of the file is parsed", () => {
     // A version-2 file might hold rows this build cannot even describe. Meeting one
     // and reporting a row-shape error would send the reader hunting the wrong bug.
     mkdirSync(path.join(root, "boards", "2026"), { recursive: true });
@@ -287,7 +287,7 @@ describe("frozen boards", () => {
     );
   });
 
-  test("AC4 — every load checks that the economy closes, and refuses a board that does not", () => {
+  test("004 AC4 — every load checks that the economy closes, and refuses a board that does not", () => {
     const file = path.join("boards", "2026", "wk03-chopped.json");
     mkdirSync(path.join(root, "boards", "2026"), { recursive: true });
     const board = sampleBoard();
@@ -306,14 +306,14 @@ describe("frozen boards", () => {
     );
   });
 
-  test("AC4 — the floor's reserve is part of what closes, so a room with a floor loads", () => {
+  test("004 AC4 — the floor's reserve is part of what closes, so a room with a floor loads", () => {
     // sampleBoard reserves $6; without the reserve term the identity is off by exactly that.
     store.writeBoard(sampleBoard());
 
     expect(() => store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" })).not.toThrow();
   });
 
-  test("AC4 — a league with no FAAB has no economy to close, and loads anyway", () => {
+  test("004 AC4 — a league with no FAAB has no economy to close, and loads anyway", () => {
     const board = sampleBoard({
       diagnostics: {
         ...sampleBoard().diagnostics,
@@ -337,7 +337,7 @@ describe("frozen boards", () => {
     expect(store.readBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toEqual(board);
   });
 
-  test("AC6 — asking whether a week is already frozen never reads the board back", () => {
+  test("004 AC6 — asking whether a week is already frozen never reads the board back", () => {
     expect(store.hasBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toBe(false);
     store.writeBoard(sampleBoard());
     expect(store.hasBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toBe(true);
