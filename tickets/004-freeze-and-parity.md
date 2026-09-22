@@ -115,9 +115,11 @@ the replacement definition (003), the standard league's board (item 3), or the g
   pool minus `rows.length`. `diagnostics.dropped.valueSum` is Σ `value` over the dropped
   rows (null when the league has no FAAB).
 - **AC4** — The economy closes from the file alone. For a FAAB league,
-  Σ `value` over `rows` + `dropped.valueSum` = `diagnostics.economy.distributable`,
-  within $0.01. Asserted in a test against the fixtures, and checked by `readBoard`
-  every time it loads a board.
+  Σ `value` over `rows` + `dropped.valueSum` = `reserve + distributable × availableVorp / supply`
+  (with `reserve = pool − distributable`), within $0.01, every term read from the file.
+  Asserted in a test against the fixtures, and checked by `readBoard` every time it
+  loads a board. *(Amended 2026-09-22, approved by Logan: the original `= distributable`
+  was the 2026 tool's one-week economy and cannot hold since 006 — see DECISIONS.md.)*
 - **AC5** — Deterministic. Two builds from the same inputs serialize to byte-identical
   JSON once `generatedAt` is removed. Tested on the fixtures in `pnpm check`. Checked by
   hand on live data by running the real week-3 board twice without `--refresh`.
@@ -194,7 +196,8 @@ The reviewer verified the artifact's central claim independently: rebuilt the we
 board twice offline from its recorded `inputs` and got the frozen file's own sha256
 (`4f5af87e…`). Determinism and the version refusal hold. `pnpm check`: 154 tests.
 
-1. **AC4 was corrected in code, not in the ticket. Needs Logan's sign-off.** The stated
+1. ~~**AC4 was corrected in code, not in the ticket. Needs Logan's sign-off.**~~ Done
+   2026-09-22: AC4 amended above, approved by Logan. The stated
    identity (Σ value over rows + dropped = `distributable`) is unsatisfiable since 006:
    a dollar now spreads over the whole season's supply, so the available pool receives
    `availableVorp / supply` of it — 7.9% on the live board. The implemented identity is
