@@ -4,6 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { BOARD_SCHEMA_VERSION, type Board } from "../../core/board/artifact.ts";
 import type { Transaction } from "../sleeper/schemas.ts";
+import type { FetchPolicy } from "../sleeper/sleeper.ts";
 import { Store } from "../store/store.ts";
 import { freeze } from "./freeze.ts";
 
@@ -49,12 +50,20 @@ function board(overrides: Partial<Board> = {}): Board {
   };
 }
 
-/** Stands in for Sleeper: returns the given week's transactions and counts the calls. */
+/** Stands in for Sleeper: returns the given week's transactions and records each call's policy. */
 function stubSource(transactions: Transaction[]) {
   const source = {
     calls: 0,
-    transactions: () => {
+    policies: [] as (FetchPolicy | undefined)[],
+    transactions: (
+      _season: string,
+      _leagueKey: string,
+      _leagueId: string,
+      _week: number,
+      policy?: FetchPolicy,
+    ) => {
       source.calls++;
+      source.policies.push(policy);
       return Promise.resolve({
         data: transactions,
         fetchedAt: "2026-09-29T15:00:00.000Z",
@@ -135,6 +144,16 @@ describe("freezing a board", () => {
 
     expect(outcome).toMatchObject({ kind: "cleared", file, existing: false });
     expect(store.hasBoard({ season: "2026", week: 4, leagueKey: "chopped" })).toBe(false);
+  });
+
+  test("AC6 — the claims question is always asked fresh, never answered from a cached file", async () => {
+    // A copy pulled before the waiver run says "not cleared" for the rest of the week,
+    // which is the one answer that lets a record be destroyed.
+    const source = stubSource(PENDING);
+
+    await freeze({ artifact: board(), currentWeek: 4, leagueId: "stub-league", store, source });
+
+    expect(source.policies).toEqual([{ refresh: true, requireFresh: true }]);
   });
 
   test("AC6 — a past week is never frozen, and Sleeper is never asked", async () => {
