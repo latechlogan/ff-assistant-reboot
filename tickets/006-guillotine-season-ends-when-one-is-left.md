@@ -1,5 +1,5 @@
 ---
-status: open
+status: done
 kind: defect
 created: 2026-09-22
 ---
@@ -114,5 +114,7 @@ future releases or money leaving with chops (007), the bid range.
    Adjust the footer.
 4. `pnpm check`. Rerun the latest week's board from as-of files and read it: values up
    by roughly the estimated ~5%, and the order essentially unchanged. If not, find out
-   why before calling it done.
+   why before calling it done. (Measured +7.7%: the ~5% estimate treated the two effects
+   as independent and missed that a shorter horizon also shrinks the rostered VORP per
+   team, and so the supply, while the pool is unchanged.)
 5. `/vet`. Add a DECISIONS.md line recording the before/after $/VORP on the same inputs.

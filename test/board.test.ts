@@ -190,7 +190,7 @@ describe("the board the CLI prints", () => {
      * of it — the league's own `total_rosters`, never a number typed in here.
      */
     const config = deriveLeagueConfig(leagueFixture());
-    const index = buildPlayerIndex(playersFixture());
+    const { index } = buildPlayerIndex(playersFixture());
     const template = rostersFixture().find((r) => r.settings.eliminated == null);
     expect(template).toBeDefined();
     const rosters = Array.from({ length: leagueFixture().total_rosters }, (_, i) => ({

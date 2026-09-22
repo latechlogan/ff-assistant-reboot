@@ -209,6 +209,33 @@ describe("the live count must match the chop cadence", () => {
     expect(run).toThrow(/week 3/);
   });
 
+  /**
+   * Ticket 006 floors the expected count at 1, so a decided season reaches the board
+   * instead of being refused as a miscount. Past the decided week the floor demands
+   * EXACTLY one survivor — replace it with an early return and this is the test that
+   * notices, because everything else about a decided room still passes.
+   */
+  test("AC3 — past the decided week the floor still demands exactly one survivor", () => {
+    // 16 teams at one a week are decided in week 15; week 17 may only ever show 1.
+    expect(() =>
+      assertChopCadence({
+        config: fixtureConfig(),
+        state: { ...base, week: 17, liveTeams: 1 },
+        chopsPerWeek: 1,
+      }),
+    ).not.toThrow();
+
+    for (const liveTeams of [2, 14]) {
+      expect(() =>
+        assertChopCadence({
+          config: fixtureConfig(),
+          state: { ...base, week: 17, liveTeams },
+          chopsPerWeek: 1,
+        }),
+      ).toThrow(ChopCadenceError);
+    }
+  });
+
   test("AC3 — a league that is not a guillotine has no cadence to check", () => {
     expect(() =>
       assertChopCadence({

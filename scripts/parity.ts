@@ -44,7 +44,7 @@ const { values } = parseArgs({
   },
 });
 
-/** The old tool's own last NFL week, for the horizon-effect column. */
+/** The NFL's own last week: the cap a caller hands the board, never a league's season length. */
 const OUR_LAST_NFL_WEEK = 18;
 
 type OldRow = {
@@ -137,14 +137,11 @@ function ourBoard(throughWeek: number) {
 
 const throughWeek = Number(values.through);
 const ours = ourBoard(throughWeek);
-const oursOurHorizon = ourBoard(OUR_LAST_NFL_WEEK);
 
 const oldPath =
   values.old ?? `../ff-assistant/data/snapshots/waivers/${season}-wk${wk}-${entry.key}.json`;
 const old = JSON.parse(readFileSync(oldPath, "utf8")) as OldBoard;
 
-const money = (n: number | null): string =>
-  n === null ? "     —" : `$${n.toFixed(2)}`.padStart(9);
 const num = (n: number, width = 9): string => n.toFixed(2).padStart(width);
 const delta = (a: number, b: number): string => {
   const d = a - b;
@@ -152,7 +149,17 @@ const delta = (a: number, b: number): string => {
 };
 
 console.log(`\nPARITY — ${entry.key}, week ${week}`);
-console.log(`  ours   : priced through week ${throughWeek}, from ${inputs.length} as-of files`);
+// `--through` is a request, not a promise: since ticket 006 a guillotine board derives
+// its own last week and clamps to it, so print what was actually priced.
+const pricedThrough = ours.diagnostics.throughWeek;
+console.log(`  ours   : priced through week ${pricedThrough}, from ${inputs.length} as-of files`);
+if (pricedThrough !== throughWeek) {
+  console.log(
+    `           (--through ${throughWeek} was clamped: ticket 006 derives the last week this room ` +
+      `can still be decided in, so this is NO LONGER a like-for-like comparison. The one-time\n` +
+      `           parity result is banked in DECISIONS.md, 2026-09-22.)`,
+  );
+}
 console.log(`  theirs : ${oldPath}`);
 console.log(
   `           generated ${old.generatedAt}, horizon ${old.diagnostics.horizon.fromWeek}-${old.diagnostics.horizon.toWeek}`,
@@ -245,18 +252,4 @@ console.log(
   `\n  ${breaches === 0 ? "PARITY PASSES" : `${breaches} of ${rows.length} row(s) differ by more than ${TOLERANCE}`}`,
 );
 
-// What the horizon alone is worth, for ticket 006: our own board at 17 vs at 18.
-console.log(
-  `\nHORIZON EFFECT — our board at week ${throughWeek} vs ${OUR_LAST_NFL_WEEK} (ticket 006)`,
-);
-const at18 = new Map(oursOurHorizon.rows.map((row) => [row.playerId, row]));
-console.log(
-  `  ${"PLAYER".padEnd(24)}${"POS".padEnd(4)}${`value@${throughWeek}`.padStart(10)}${`value@${OUR_LAST_NFL_WEEK}`.padStart(10)}${"Δ".padStart(10)}`,
-);
-for (const row of ours.rows.slice(0, 10)) {
-  const other = at18.get(row.playerId);
-  console.log(
-    `  ${(index.get(row.playerId)?.name ?? row.playerId).slice(0, 23).padEnd(24)}${row.position.padEnd(4)}${money(row.value)}${money(other?.value ?? null)}${delta(row.value ?? 0, other?.value ?? 0)}`,
-  );
-}
 console.log("");

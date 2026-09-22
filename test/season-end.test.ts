@@ -96,7 +96,7 @@ function weeklyEveryWeek(index: PlayerIndex, config: LeagueConfig): WeeklyPoints
  */
 function guillotineBoard(week: number, liveTeams: number, chopsPerWeek = 1) {
   const config = deriveLeagueConfig(leagueFixture());
-  const index = buildPlayerIndex(playersFixture());
+  const { index } = buildPlayerIndex(playersFixture());
   const state = summarizeLeagueState({ rosters: roomOf(liveTeams), index, config, week });
 
   return buildWaiverBoard({
@@ -203,7 +203,7 @@ describe("a guillotine season stops at the week it is decided", () => {
 
   test("AC4 — one team left is a decided season, not a cadence error", () => {
     const config = deriveLeagueConfig(leagueFixture());
-    const index = buildPlayerIndex(playersFixture());
+    const { index } = buildPlayerIndex(playersFixture());
     // Week 17 of the 16-team room: the week-15 chop left one team, and `teams −
     // chopsPerWeek × (week − 1)` reaches 0 while Sleeper still shows 1 (ticket 005's
     // review). A decided season is a state to report, not a room we are reading wrong.
@@ -309,7 +309,7 @@ describe("the standard league is untouched", () => {
     payload.settings.type = 0;
 
     const config = deriveLeagueConfig(payload);
-    const index = buildPlayerIndex(playersFixture());
+    const { index } = buildPlayerIndex(playersFixture());
     const state = summarizeLeagueState({ rosters: rostersFixture(), index, config, week: 2 });
     const weekly: WeeklyPoints[] = projectionsFixture()
       .filter((row) => index.has(row.player_id))
