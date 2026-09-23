@@ -91,7 +91,12 @@ export class DataRootError extends Error {}
  * Logan has accepted it (docs/brief.md), and prose in `provenance.reviewedBy` is not
  * something code can check.
  */
+/** A share of a budget: what fraction was left unspent. Outside 0–1 is not a share. */
+const Share = z.number().min(0).max(1);
+
 const UnspentCurveSchema = z.object({
+  /** Like a board, a curve whose version this build does not know is refused, not guessed at. */
+  schemaVersion: z.literal(1),
   measuredAt: z.string().min(1),
   method: z.string().min(1),
   sample: z.object({
@@ -99,8 +104,8 @@ const UnspentCurveSchema = z.object({
     choppedRosterRowsUsed: z.number().int().positive(),
   }),
   reviewed: z.object({ by: z.string().min(1), on: z.string().min(1) }),
-  byChopWeek: z.array(z.object({ week: z.number().int().positive(), mean: z.number() })).min(1),
-  survivorResidual: z.object({ mean: z.number() }),
+  byChopWeek: z.array(z.object({ week: z.number().int().positive(), mean: Share })).min(1),
+  survivorResidual: z.object({ mean: Share }),
 });
 export type MeasuredUnspentCurve = z.infer<typeof UnspentCurveSchema>;
 

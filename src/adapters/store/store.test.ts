@@ -460,6 +460,28 @@ describe("007 — the measured leakage curve", () => {
     expect(() => store.readUnspentCurve()).toThrow(DataRootError);
   });
 
+  test("007 AC3 — a curve of a version this build does not know is refused", () => {
+    writeUnspent(root, JSON.stringify(unspentArtifact({ schemaVersion: 2 })));
+
+    expect(() => store.readUnspentCurve()).toThrow(DataRootError);
+  });
+
+  test("007 AC3 — a mean outside 0–1 is not a share of a budget, and is refused", () => {
+    const bad = unspentArtifact();
+    const weeks = bad["byChopWeek"] as { week: number; mean: number }[];
+    writeUnspent(
+      root,
+      JSON.stringify({
+        ...bad,
+        byChopWeek: weeks.map((w, i) => (i === 0 ? { ...w, mean: 1.2 } : w)),
+      }),
+    );
+    expect(() => store.readUnspentCurve()).toThrow(DataRootError);
+
+    writeUnspent(root, JSON.stringify(unspentArtifact({ survivorResidual: { mean: -0.1 } })));
+    expect(() => store.readUnspentCurve()).toThrow(DataRootError);
+  });
+
   test("007 AC3 — a curve with only the prose reviewedBy, and no structured acceptance, is refused", () => {
     const { reviewed: _reviewed, ...unreviewed } = unspentArtifact();
     writeUnspent(root, JSON.stringify(unreviewed));
