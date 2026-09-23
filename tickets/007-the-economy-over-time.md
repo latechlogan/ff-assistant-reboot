@@ -1,5 +1,5 @@
 ---
-status: open
+status: in-progress
 kind: improvement
 created: 2026-09-22
 ---
@@ -151,6 +151,20 @@ are confirmed end to end **by hand** on a live rebuild of the week-3 board.
 **spendable** pool, not the gross one — floor bids are money that is actually spent.
 So the guard that refuses to price when the reserve cannot be paid compares against
 `pool − leakage`. No number moves today: both rooms bid from $0.
+
+**Decided before implementation (Logan, 2026-09-22):**
+- **Leakage larger than the pool** is not handled now. When it happens the board refuses
+  (spendable money would be negative), and the refusal says so in those words rather
+  than blaming the floor. Deciding what to price then is deferred until it is near: the
+  footer shows leakage beside the pool, so it will be seen coming.
+- **Cadence:** 007 supports one chop a week and refuses any other by name (YAGNI — the
+  only room priced chops once a week).
+- **Two survivors** (one sampled room ended that way) is ignored: a 16-team room chopping
+  once a week ends with one.
+- **Releases are counted from the chop-week list only**, so no second number can drift
+  from it.
+- The leakage artifact carries `reviewed: { by, on }` at its top level (data repo,
+  uncommitted until `pnpm archive`).
 
 ## Boundary
 - No invented curves: every number traces to the 2025 measurement or to the survival
