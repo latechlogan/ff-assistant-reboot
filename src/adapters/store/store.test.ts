@@ -1,3 +1,27 @@
+/**
+ * Interface assumed by 007's tests (tickets/007, written before the implementation):
+ *
+ *   BOARD_SCHEMA_VERSION is 2. A version-2 board's `diagnostics.economy` adds
+ *     leakage: number, reserve: number, releaseEquivalents: number
+ *   to version 1's fields; `pool` is the room's gross FAAB.
+ *   readBoard(key) accepts version 2 AND version 1:
+ *     - v2 is checked by both  distributable = pool − leakage − reserve  and
+ *       Σ value(rows) + dropped.valueSum = reserve + distributable × availableVorp / supply,
+ *       with `reserve` read from the file (never pool − distributable);
+ *     - v1 is checked under v1's identity, reserve = pool − distributable, no leakage;
+ *     - any other version is refused with DataRootError, as before (004 AC7).
+ *     Either identity failing throws an error whose message matches /econom/i.
+ *   Store#readUnspentCurve(): reads measured/chop-unspent-v1.json under the data root
+ *     and returns the parsed artifact, at least
+ *       { measuredAt: string; method: string;
+ *         sample: { leagues: number; choppedRosterRowsUsed: number };
+ *         reviewed: { by: string; on: string };
+ *         byChopWeek: { week: number; mean: number }[];
+ *         survivorResidual: { mean: number } }
+ *     and throws DataRootError when the file is missing, is not JSON, does not match
+ *     that shape, or has no structured `reviewed: { by, on }` (the prose
+ *     `provenance.reviewedBy` does not count).
+ */
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -341,5 +365,250 @@ describe("frozen boards", () => {
     expect(store.hasBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toBe(false);
     store.writeBoard(sampleBoard());
     expect(store.hasBoard({ season: "2026", week: 3, leagueKey: "chopped" })).toBe(true);
+  });
+});
+
+/**
+ * Ticket 007 — the leakage curve, read through the store, and the version-2 board.
+ */
+
+/**
+ * A trimmed copy of measured/chop-unspent-v1.json (../ff-assistant-data): the fields a
+ * reader needs, with `reviewed` added as AC3 requires. League ids and names are left
+ * out on purpose — they are private and nothing here needs them.
+ */
+function unspentArtifact(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    id: "chop-unspent-v1",
+    measuredAt: "2026-09-22",
+    sample: { leagues: 23, choppedRosterRowsUsed: 377, survivorRows: 24 },
+    method:
+      "unspent = budget - waiver_budget_used; unspent_frac = unspent / budget; mean by chop week.",
+    byChopWeek: [
+      { week: 1, n: 21, mean: 0.9998, median: 1.0 },
+      { week: 2, n: 23, mean: 0.9578, median: 1.0 },
+      { week: 3, n: 23, mean: 0.7777, median: 0.97 },
+      { week: 4, n: 23, mean: 0.7453, median: 0.8 },
+      { week: 5, n: 23, mean: 0.721, median: 0.88 },
+      { week: 6, n: 23, mean: 0.673, median: 0.82 },
+      { week: 7, n: 23, mean: 0.471, median: 0.413 },
+      { week: 8, n: 22, mean: 0.2253, median: 0.1435 },
+      { week: 9, n: 22, mean: 0.2265, median: 0.1915 },
+      { week: 10, n: 23, mean: 0.1703, median: 0.115 },
+      { week: 11, n: 24, mean: 0.1316, median: 0.062 },
+      { week: 12, n: 23, mean: 0.0442, median: 0.015 },
+      { week: 13, n: 23, mean: 0.1025, median: 0.03 },
+      { week: 14, n: 23, mean: 0.0252, median: 0.0 },
+      { week: 15, n: 23, mean: 0.0228, median: 0.0 },
+      { week: 16, n: 19, mean: 0.02, median: 0.0 },
+      { week: 17, n: 16, mean: 0.0075, median: 0.0 },
+    ],
+    survivorResidual: { n: 24, mean: 0.0182, median: 0.0055, max: 0.155 },
+    provenance: { reviewedBy: "A. Reviewer, 2026-09-22. Accepted as the prior." },
+    reviewed: { by: "A. Reviewer", on: "2026-09-22" },
+    ...overrides,
+  };
+}
+
+function writeUnspent(root: string, content: string): void {
+  mkdirSync(path.join(root, "measured"), { recursive: true });
+  writeFileSync(path.join(root, "measured", "chop-unspent-v1.json"), content);
+}
+
+describe("007 — the measured leakage curve", () => {
+  let root: string;
+  let store: Store;
+
+  beforeEach(() => {
+    root = newRoot();
+    store = new Store(root);
+  });
+
+  test("007 AC3 — the curve is read from measured/, carrying its sample, date, method and acceptance", () => {
+    writeUnspent(root, JSON.stringify(unspentArtifact()));
+
+    const curve = store.readUnspentCurve();
+
+    expect(curve.sample.leagues).toBe(23);
+    expect(curve.sample.choppedRosterRowsUsed).toBe(377);
+    expect(curve.measuredAt).toBe("2026-09-22");
+    expect(curve.method.length).toBeGreaterThan(0);
+    expect(curve.reviewed).toEqual({ by: "A. Reviewer", on: "2026-09-22" });
+    expect(curve.byChopWeek.find((entry) => entry.week === 7)?.mean).toBe(0.471);
+    expect(curve.survivorResidual.mean).toBe(0.0182);
+  });
+
+  test("007 AC3 — a missing curve is refused, never replaced by a default", () => {
+    expect(() => store.readUnspentCurve()).toThrow(DataRootError);
+  });
+
+  test("007 AC3 — an unreadable curve is refused as a data-root error, not a stray parse error", () => {
+    writeUnspent(root, "{ this is not json");
+
+    expect(() => store.readUnspentCurve()).toThrow(DataRootError);
+  });
+
+  test("007 AC3 — a curve of the wrong shape is refused", () => {
+    writeUnspent(root, JSON.stringify(unspentArtifact({ byChopWeek: "weeks 1-17" })));
+
+    expect(() => store.readUnspentCurve()).toThrow(DataRootError);
+  });
+
+  test("007 AC3 — a curve with only the prose reviewedBy, and no structured acceptance, is refused", () => {
+    const { reviewed: _reviewed, ...unreviewed } = unspentArtifact();
+    writeUnspent(root, JSON.stringify(unreviewed));
+
+    expect(() => store.readUnspentCurve()).toThrow(DataRootError);
+    expect(() => store.readUnspentCurve()).toThrow(/review/i);
+  });
+
+  test("007 AC3 — an acceptance missing who or when is no acceptance", () => {
+    writeUnspent(root, JSON.stringify(unspentArtifact({ reviewed: { by: "A. Reviewer" } })));
+    expect(() => store.readUnspentCurve()).toThrow(DataRootError);
+
+    writeUnspent(root, JSON.stringify(unspentArtifact({ reviewed: { on: "2026-09-22" } })));
+    expect(() => store.readUnspentCurve()).toThrow(DataRootError);
+  });
+});
+
+/**
+ * A version-2 board whose economy closes with leakage and a floor both in play, so that
+ * `reserve` (6) and `pool − distributable` (36) differ — a reader that derived the
+ * reserve would get the identity wrong by $30.
+ *
+ *   pool 100 − leakage 30 − reserve 6 (a $2 floor × 3 available) = distributable 64
+ *   one row:     2 + 64 × 20 / 100 = 14.80
+ *   two dropped: 2 × $2            =  4.00
+ *   Σ = 18.80 = reserve 6 + 64 × 20 / 100 (12.80)
+ */
+function sampleBoardV2(economy: Record<string, number> = {}, rowValue = 14.8): Board {
+  const board = sampleBoard();
+  return {
+    ...board,
+    schemaVersion: 2,
+    diagnostics: {
+      ...board.diagnostics,
+      economy: {
+        pool: 100,
+        leakage: 30,
+        reserve: 6,
+        distributable: 64,
+        availableVorp: 20,
+        rosteredVorpPerTeam: 40,
+        chopsRemaining: 2,
+        releaseEquivalents: 1.5,
+        supply: 100,
+        dollarsPerVorp: 0.64,
+        ...economy,
+      },
+      dropped: { rowCount: 2, valueSum: 4 },
+    },
+    rows: [{ ...(board.rows[0] as Board["rows"][number]), value: rowValue }],
+  } as unknown as Board;
+}
+
+/** Write a board file directly, bypassing writeBoard's outbound gate. */
+function plant(root: string, board: unknown): void {
+  mkdirSync(path.join(root, "boards", "2026"), { recursive: true });
+  writeFileSync(path.join(root, "boards", "2026", "wk03-chopped.json"), JSON.stringify(board));
+}
+
+const WK03 = { season: "2026", week: 3, leagueKey: "chopped" };
+
+describe("007 — the version-2 board's economy", () => {
+  let root: string;
+  let store: Store;
+
+  beforeEach(() => {
+    root = newRoot();
+    store = new Store(root);
+  });
+
+  test("007 AC4 — pool, leakage, reserve and distributable are all recorded, and a board that closes loads", () => {
+    const board = sampleBoardV2();
+    store.writeBoard(board);
+
+    const read = store.readBoard(WK03);
+    expect(read.diagnostics.economy).toMatchObject({
+      pool: 100,
+      leakage: 30,
+      reserve: 6,
+      distributable: 64,
+    });
+    expect(read).toEqual(board);
+  });
+
+  test("007 AC4 — a distributable that is not pool − leakage − reserve is refused on load", () => {
+    // Leakage off by a dollar; every row still closes on the second identity.
+    plant(root, sampleBoardV2({ leakage: 31 }));
+
+    expect(() => store.readBoard(WK03)).toThrow(/econom/i);
+  });
+
+  test("007 AC4 — the reserve is read from the file: one that disagrees with the rows is refused", () => {
+    // Reserve 7 and distributable 63 still satisfy 100 − 30 − 7 = 63, but the rows were
+    // priced on a reserve of 6: 7 + 63 × 0.2 = 19.60, not 18.80.
+    plant(root, sampleBoardV2({ reserve: 7, distributable: 63 }));
+
+    expect(() => store.readBoard(WK03)).toThrow(/econom/i);
+  });
+
+  test("007 AC4 — rows that do not add up are refused on every load", () => {
+    plant(root, sampleBoardV2({}, 13.8));
+
+    expect(() => store.readBoard(WK03)).toThrow(/econom/i);
+  });
+});
+
+describe("007 — boards frozen before 007", () => {
+  let root: string;
+  let store: Store;
+
+  beforeEach(() => {
+    root = newRoot();
+    store = new Store(root);
+  });
+
+  /**
+   * A version-1 board as 004 wrote it (and as boards/2026/wk03-chopped.json is): no
+   * leakage, no reserve field, and a $2 floor whose reserve is pool − distributable = 6.
+   */
+  const v1Board = (rowValue = 20.8): unknown => {
+    const board = sampleBoard();
+    return {
+      ...board,
+      schemaVersion: 1,
+      rows: [{ ...(board.rows[0] as Board["rows"][number]), value: rowValue }],
+    };
+  };
+
+  test("007 AC8 — the envelope change bumps the board's schema version", () => {
+    expect(BOARD_SCHEMA_VERSION).toBe(2);
+  });
+
+  test("007 AC8 — a version-1 board still loads, checked under version 1's own identity", () => {
+    expect(BOARD_SCHEMA_VERSION).not.toBe(1); // or this proves nothing about old boards
+    plant(root, v1Board());
+
+    const read = store.readBoard(WK03) as unknown as { schemaVersion: number; rows: unknown[] };
+    expect(read.schemaVersion).toBe(1);
+    expect(read.rows).toEqual((v1Board() as { rows: unknown[] }).rows);
+  });
+
+  test("007 AC8 — a version-1 board whose economy does not close is still refused", () => {
+    expect(BOARD_SCHEMA_VERSION).not.toBe(1);
+    // A dollar off the only row; under v1's identity 19.8 + 4 ≠ 6 + 94 × 20 / 100.
+    plant(root, v1Board(19.8));
+
+    expect(() => store.readBoard(WK03)).toThrow(/econom/i);
+  });
+
+  test("007 AC8 — any version other than 1 or the current one is still refused", () => {
+    expect(BOARD_SCHEMA_VERSION).toBe(2);
+    for (const version of [0, 3]) {
+      plant(root, { ...(v1Board() as object), schemaVersion: version });
+      expect(() => store.readBoard(WK03)).toThrow(DataRootError);
+    }
   });
 });
