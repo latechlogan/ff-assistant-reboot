@@ -13,8 +13,9 @@ separate context is the point.
    flight. An acceptance criterion with no test named for **that ticket**
    (`NNN ACn — …`) is a stop — say so before going further. Then run the bare
    `pnpm criteria`, which covers every ticket that is not `done` or `dropped`. It fails
-   only on started work (partial coverage, or `in-progress`); unstarted tickets are
-   listed, and are context for the report, not a stop.
+   on started work with a gap (partial coverage, or `in-progress`) and on a test naming
+   a ticket or AC that does not exist; unstarted tickets are listed, and are context for
+   the report, not a stop.
 2. **Mutation score:** when the diff touches `src/core/**`, run `pnpm mutate` and carry
    the score and any surviving mutants into the report. Skip it otherwise and say so.
 3. **Dispatch the `reviewer` subagent** with: the current ticket file, `git diff main`,

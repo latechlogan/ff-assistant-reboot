@@ -29,7 +29,7 @@ A ticket's criteria are numbered `AC1…ACn` under `## Done looks like`, and the
 test("005 AC1 — `eliminated: 1` is chopped; the key being absent means alive", …)
 ```
 
-`pnpm criteria` matches one against the other and exits non-zero if a criterion of a started ticket (`in-progress`, or with any test already named for it) has no test, or if a test names a ticket or an AC that does not exist. A ticket with no tests yet is listed as unstarted rather than failed. The ticket number is what makes it a check rather than a coincidence; see `docs/trust.md`.
+`pnpm criteria` matches one against the other and exits non-zero if a criterion of a started ticket (`in-progress`, with any test already named for it, or named on the command line) has no test, or if a test names a ticket or an AC that does not exist. A ticket with no tests yet is listed as unstarted rather than failed. The ticket number is what makes it a check rather than a coincidence; see `docs/trust.md`.
 
 **The list is closed because other workspaces read `status` without knowing this repo.** A seventh word invented here is one only this repo understands. If one is genuinely needed, it's a change to the shared shape and is made in the workspace-scaffold repo, not here.
 
