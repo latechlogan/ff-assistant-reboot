@@ -69,10 +69,13 @@ says so in `provenance.reviewedBy`.
 |---|---|---|---|---|
 | today (006 merged) | 2605 | 12701 | 4.88 | $211 |
 | supply half only | 1055 | 12701 | 12.0 | $521 |
-| **both halves** | **1055** | **~8364** | **~7.9** | **~$343** |
+| **both halves** | **1055** | **~8346** | **~7.9** | **~$343** |
 
 Leakage: the 13 remaining chops land in weeks 3–15; summing their mean unspent shares
-gives 4.34 team-budgets ≈ $4,337, so ~$8,364 of the $12,701 is expected to be spent.
+gives 4.34 team-budgets ≈ $4,336; the survivor's 1.8% residual adds $18, so ~$8,346 of
+the $12,701 is expected to be spent. (First drafted as $8,364, which left the survivor
+out while AC2's formula kept it in; caught re-deriving AC2 from the artifact,
+2026-09-22.)
 
 ### Caveats that belong in the code comments, not just here
 - One season, self-selected sample: the 23 rooms were crawled outward from Logan's own
@@ -101,7 +104,7 @@ Draft, for Logan's approval:
   releases total 4.25 roster-equivalents (±0.01), and the board's diagnostics say so.
 - **AC2** — The spendable pool is the room's FAAB minus, for each remaining chop, that
   chop week's measured mean unspent share of a budget, minus the survivor's residual.
-  On the week-3 inputs: $12,701 → $8,364 (±$5), and the diagnostics carry both the gross
+  On the week-3 inputs: $12,701 → $8,346 (±$5), and the diagnostics carry both the gross
   pool and the leakage, so the deduction is legible rather than implied.
 - **AC3** — Both come from one reviewed artifact under `measured/`, carrying its sample
   (23 rooms, 377 chopped rosters), its date, and its method. A missing or unreadable
@@ -143,11 +146,11 @@ So the guard that refuses to price when the reserve cannot be paid compares agai
 - Ask-first: writing to `../ff-assistant-data`.
 
 ## Plan (proposed)
-1. Logan approves AC1–AC8 (and the numbers above). AC4, AC8 and the reserve decision:
-   approved 2026-09-22.
-2. Put the measurement in the data repo with its provenance; Logan reviews the artifact
-   before it prices anything (`docs/brief.md`: a measured curve is accepted by Logan, not
-   by a test).
+1. Logan approves AC1–AC8 (and the numbers above). Approved 2026-09-22: AC4, AC8, the
+   reserve decision, AC1 (re-derived: 4.250), and AC2 at $8,346 (re-derived from the
+   artifact). Still to approve: AC3, AC5, AC6, AC7.
+2. ~~Logan reviews the leakage artifact.~~ Accepted 2026-09-22; recorded in its
+   `provenance.reviewedBy` (data repo, uncommitted until `pnpm archive`).
 3. Tests from the criteria, by a separate agent. Confirm red.
 4. Implement both halves. Read the board. Record before/after in DECISIONS.md.
 5. `/vet`.
