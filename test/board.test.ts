@@ -553,6 +553,36 @@ describe("007 — the board prices the economy over time", () => {
     ).toThrow(/curve|unspent|measured/i);
   });
 
+  test("007 AC3 — a FAAB room whose settings carry no budget is refused, not priced with zero leakage", () => {
+    // The curve's shares are of a season budget. Normally a room without one has no
+    // FAAB pool at all, but the build takes the config and the state separately, and a
+    // mismatched pair must not turn `null × share` into $0 of leakage.
+    const withBudget = deriveLeagueConfig(leagueFixture());
+    const noBudget = leagueFixture();
+    noBudget.settings.waiver_budget = null;
+    const config = deriveLeagueConfig(noBudget);
+    const { index } = buildPlayerIndex(playersFixture());
+    const state = summarizeLeagueState({
+      rosters: rostersFixture(),
+      index,
+      config: withBudget,
+      week: 2,
+    });
+    expect(state.faabPool).not.toBeNull(); // or the refusal below is never reached
+
+    expect(() =>
+      buildWaiverBoard({
+        config,
+        index,
+        state,
+        weekly: scoredWeekly(index, config),
+        throughWeek: THROUGH_WEEK,
+        chopsPerWeek: 1,
+        unspentCurve: UNSPENT_CURVE,
+      }),
+    ).toThrow(/no season budget/);
+  });
+
   test("007 AC4 — the frozen board records pool, leakage, reserve and distributable, and both identities close", () => {
     // A $1 floor, so the reserve is a real term and differs from pool − distributable.
     const { index, result } = fullRoom(1);

@@ -488,6 +488,30 @@ describe("007 — the reserve comes out of the spendable pool", () => {
     expect(diagnostics.distributable).toBeCloseTo(148, 10);
   });
 
+  test("007 AC2 — leakage larger than the pool is refused in those words, not blamed on the floor", () => {
+    // Decided 2026-09-22: what to price then is deferred, but the refusal must name the
+    // cause. One week-3 chop leaking 0.6 of a $200 budget is $120, more than the $100
+    // left in the room; the floor is $0, so any mention of it would be a misdiagnosis.
+    const call = (): unknown =>
+      allocateFaab({
+        availableVorp: new Map([["a", 10]]),
+        rosteredVorpByTeam: [10],
+        pool: 100,
+        floor: 0,
+        chopsRemaining: 0,
+        guillotine: {
+          fromWeek: 3,
+          survivalWeights: [1],
+          chopWeeks: [3],
+          budget: 200,
+          curve: { byChopWeek: [{ week: 3, mean: 0.6 }], survivorResidual: { mean: 0 } },
+        },
+      });
+
+    expect(call).toThrow(/leakage of 120 exceeds the room's remaining 100/);
+    expect(call).not.toThrow(/floor/);
+  });
+
   test("007 AC4 — a reserve the spendable pool cannot pay is refused, even when the gross pool could", () => {
     // 60 rows at a $1 floor reserve $60: under the $100 gross pool, over the $50 left
     // once a week-3 chop takes half of a $100 budget with it.
