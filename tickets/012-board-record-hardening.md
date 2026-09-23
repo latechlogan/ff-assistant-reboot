@@ -24,6 +24,10 @@ From 004's reviews (2026-09-22), see `tickets/004-freeze-and-parity.md`:
 - A failed transactions fetch in the freeze exits with a stack trace, not a sentence.
 - OVERWROTE records nothing about the evidence that permitted it (which transactions
   file said "not cleared").
+- A board names `measured/chop-unspent-v1.json` in its `inputs` by path only, and unlike
+  the raw as-of files that file is edited in place (its acceptance was added after the
+  measurement). So a frozen board cannot say which revision of the curve priced it.
+  Recording the curve's content hash beside its path would. Found in 007's review.
 
 ## Scope
 `src/adapters/sleeper/`, `src/adapters/store/`, `src/adapters/board/`, `src/adapters/cli/`,

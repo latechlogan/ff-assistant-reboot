@@ -123,6 +123,7 @@ rest. It is also what makes the determinism test meaningful rather than luck.
 | `boards/<season>/wk<NN>-<league>.json` | Frozen board: envelope + diagnostics + rows | Nothing in the pipeline. Logan, and future analysis | The waiver stage, once per league-week |
 | `bids/<season>/*` | Crawl corpus: rooms and their normalized bids | The measurement step | The crawler |
 | `measured/bid-curve-v<N>.json` | The reviewed bid curve | The pricing step | The measurement step, on demand |
+| `measured/chop-unspent-v1.json` | The reviewed unspent curve: share of a budget that leaves with a team chopped in each week, and the survivor's residual. Raw rows and the analysis script beside it | The pricing step, guillotine FAAB rooms only (tickets/007); refused without `reviewed: { by, on }` | The one-off 2025 crawl; accepted by Logan |
 | `archive/` | The 2026 carryover, with its own README of verified caveats | Humans, and one-time parity checks | Nothing — frozen |
 
 Layout in the private repo:
@@ -138,6 +139,7 @@ ff-assistant-data/
   boards/2026/wk<NN>-<league>.json
   bids/2025/…
   measured/bid-curve-v1.json
+  measured/chop-unspent-v1.json    (+ -rows.csv, -analyze.mjs)
   archive/…
 ```
 
