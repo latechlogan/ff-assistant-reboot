@@ -94,6 +94,15 @@ function weeklyEveryWeek(index: PlayerIndex, config: LeagueConfig): WeeklyPoints
  * `chopsPerWeek` is the room's cadence from the registry; it defaults to the one-a-week
  * room the ticket's worked examples use.
  */
+/**
+ * A curve under which nothing leaks. These are 006's tests — about which weeks are
+ * priced and how many releases remain — and 007's money side would only blur them.
+ */
+const NOTHING_LEAKS = {
+  byChopWeek: Array.from({ length: LAST_NFL_WEEK }, (_, i) => ({ week: i + 1, mean: 0 })),
+  survivorResidual: { mean: 0 },
+};
+
 function guillotineBoard(week: number, liveTeams: number, chopsPerWeek = 1) {
   const config = deriveLeagueConfig(leagueFixture());
   const { index } = buildPlayerIndex(playersFixture());
@@ -107,6 +116,7 @@ function guillotineBoard(week: number, liveTeams: number, chopsPerWeek = 1) {
     // The CLI passes the NFL's last week; the board is what decides to stop earlier.
     throughWeek: LAST_NFL_WEEK,
     chopsPerWeek,
+    unspentCurve: NOTHING_LEAKS,
   });
 }
 
@@ -140,9 +150,14 @@ describe("a guillotine season stops at the week it is decided", () => {
 
     expect(economy.chopsRemaining).toBe(12);
     expect(economy.chopsRemaining).not.toBe(week3.diagnostics.liveTeams - 1);
-    // And the supply is spread over those 12 releases, not 13 — this is the ~8% the
-    // ticket says $/VORP is understated by.
-    expect(economy.supply).toBeCloseTo(economy.availableVorp + 12 * economy.rosteredVorpPerTeam, 6);
+    // The supply is built from those 12 releases — since tickets/007 each weighted by the
+    // weeks it has left (4.25 rosters on these weights, see 007 AC1), no longer 12 whole
+    // rosters. The count above is 006's; the weighting is 007's.
+    expect(economy.releaseEquivalents).toBeCloseTo(4.25, 10);
+    expect(economy.supply).toBeCloseTo(
+      economy.availableVorp + economy.releaseEquivalents * economy.rosteredVorpPerTeam,
+      6,
+    );
 
     // Week 15, 2 live: the last chop follows week 15, so nothing released is playable.
     expect(guillotineBoard(15, 2).diagnostics.economy?.chopsRemaining).toBe(0);
@@ -346,10 +361,28 @@ describe("the standard league is untouched", () => {
      * rename had moved a single number rather than only a key, putting the old key
      * back would not bring the old digest back with it.
      */
-    const { dropped, ...rest } = board.diagnostics;
+    /**
+     * tickets/007 added `leakage`, `reserve` and `releaseEquivalents` to the economy.
+     * For a standard room all three are nothing — no chops, no floor, no leakage — and
+     * the digest is again NOT regenerated: the pre-007 economy is rebuilt below, key
+     * for key and in its old order, so only an unchanged number can reproduce it.
+     */
+    const { dropped, economy, ...rest } = board.diagnostics;
+    expect(economy?.leakage).toBe(0);
+    expect(economy?.reserve).toBe(0);
+    expect(economy?.releaseEquivalents).toBe(0);
+    const preEconomy = economy && {
+      pool: economy.pool,
+      distributable: economy.distributable,
+      availableVorp: economy.availableVorp,
+      rosteredVorpPerTeam: economy.rosteredVorpPerTeam,
+      chopsRemaining: economy.chopsRemaining,
+      supply: economy.supply,
+      dollarsPerVorp: economy.dollarsPerVorp,
+    };
     const serialized = JSON.stringify({
       everyRow: board.everyRow,
-      diagnostics: { ...rest, belowReplacement: dropped.rowCount },
+      diagnostics: { ...rest, economy: preEconomy, belowReplacement: dropped.rowCount },
     });
     expect(createHash("sha256").update(serialized).digest("hex")).toBe(
       "3583ec89ab03fd5eb168187cc3ea1555d013f9cad735f5675fee947e37a55d50",

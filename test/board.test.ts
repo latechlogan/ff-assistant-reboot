@@ -77,6 +77,7 @@ function board(week = 2, extra: Extra = {}) {
       weekly,
       throughWeek: THROUGH_WEEK,
       chopsPerWeek: 1,
+      unspentCurve: UNSPENT_CURVE,
     }),
   };
 }
@@ -226,6 +227,7 @@ describe("the board the CLI prints", () => {
       weekly: [],
       throughWeek: THROUGH_WEEK,
       chopsPerWeek: 1,
+      unspentCurve: UNSPENT_CURVE,
     });
 
     const weights = result.diagnostics.survivalWeights;
@@ -248,7 +250,15 @@ describe("positions with no real market", () => {
         week: row.week,
         points: scoreStatLine(row.stats, config.scoring),
       }));
-    const args = { config, index, state, weekly, throughWeek: THROUGH_WEEK, chopsPerWeek: 1 };
+    const args = {
+      config,
+      index,
+      state,
+      weekly,
+      throughWeek: THROUGH_WEEK,
+      chopsPerWeek: 1,
+      unspentCurve: UNSPENT_CURVE,
+    };
 
     const priced = buildWaiverBoard(args);
     const floored = buildWaiverBoard({ ...args, floorPositions: ["K"] });
@@ -287,6 +297,7 @@ describe("positions with no real market", () => {
       throughWeek: THROUGH_WEEK,
       chopsPerWeek: 1,
       floorPositions: ["K"],
+      unspentCurve: UNSPENT_CURVE,
     });
 
     const values = board.rows.map((row) => row.value ?? 0);
@@ -346,12 +357,13 @@ describe("the board as it is frozen", () => {
 
     /**
      * The identity, stated in the file's own numbers. The floor every available
-     * player is guaranteed is `pool − distributable`; the rest of the pool is spread
+     * player is guaranteed is the recorded `reserve` — since tickets/007 no longer
+     * `pool − distributable`, which now also holds the leakage; the rest is spread
      * over the whole season's supply, of which this week's available players are
      * `availableVorp / supply`. The remainder is not missing — it is held for the
      * rosters that future chops will release.
      */
-    const reserve = economy.pool - economy.distributable;
+    const reserve = economy.reserve;
     const expected = reserve + (economy.distributable * economy.availableVorp) / economy.supply;
 
     expect(shown + (dropped.valueSum ?? 0)).toBeCloseTo(expected, 2);
@@ -372,7 +384,7 @@ describe("the board as it is frozen", () => {
     expect(dropped.valueSum).toBeCloseTo(minBid * dropped.rowCount, 6);
 
     const shown = frozen.rows.reduce((sum, row) => sum + (row.value ?? 0), 0);
-    const reserve = economy.pool - economy.distributable;
+    const reserve = economy.reserve;
     expect(reserve).toBeCloseTo(minBid * frozen.diagnostics.availablePool, 6);
     expect(shown + (dropped.valueSum ?? 0)).toBeCloseTo(
       reserve + (economy.distributable * economy.availableVorp) / economy.supply,

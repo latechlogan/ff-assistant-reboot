@@ -56,7 +56,10 @@ export type Allocation = {
     readonly distributable: number;
     readonly availableVorp: number;
     readonly rosteredVorpPerTeam: number;
-    /** Chops still ahead (guillotine), or whole-roster releases (otherwise). */
+    /**
+     * Releases still worth buying: chops whose roster has at least one week left to
+     * play (guillotine — the final chop's does not), or whole-roster releases otherwise.
+     */
     readonly chopsRemaining: number;
     /** The releases' worth in whole rosters, after weighting each by the weeks it has left. */
     readonly releaseEquivalents: number;
@@ -98,7 +101,10 @@ export function allocateFaab(args: {
       ? 0
       : rosteredVorpByTeam.reduce((sum, v) => sum + v, 0) / rosteredVorpByTeam.length;
 
-  const chopsRemaining = guillotine ? guillotine.chopWeeks.length : args.chopsRemaining;
+  const lastWeek = guillotine ? guillotine.fromWeek + guillotine.survivalWeights.length - 1 : 0;
+  const chopsRemaining = guillotine
+    ? guillotine.chopWeeks.filter((week) => week < lastWeek).length
+    : args.chopsRemaining;
   const releaseEquivalents = guillotine ? timeWeightedReleases(guillotine) : chopsRemaining;
   const leakage = guillotine ? expectedLeakage(guillotine) : 0;
 

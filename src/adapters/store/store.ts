@@ -4,9 +4,11 @@ import { z } from "zod";
 import {
   BOARD_SCHEMA_VERSION,
   BoardSchema,
+  BoardV1Schema,
   assertEconomyCloses,
   serializeBoard,
   type Board,
+  type BoardV1,
 } from "../../core/board/artifact.ts";
 import type { AsOf } from "../../core/ports.ts";
 import { PRICED_POSITIONS } from "../../core/types.ts";
@@ -79,6 +81,31 @@ export function stampFrom(iso: string): string {
 }
 
 export class DataRootError extends Error {}
+
+/**
+ * The measured unspent curve (tickets/007): what share of a budget leaves with a team
+ * chopped in each week, and what the survivor never spends. Measured from 2025 rooms,
+ * reviewed by Logan, and read from the data repo — never a literal in the code.
+ *
+ * `reviewed` is required, and it is the structured one: a curve prices nothing until
+ * Logan has accepted it (docs/brief.md), and prose in `provenance.reviewedBy` is not
+ * something code can check.
+ */
+const UnspentCurveSchema = z.object({
+  measuredAt: z.string().min(1),
+  method: z.string().min(1),
+  sample: z.object({
+    leagues: z.number().int().positive(),
+    choppedRosterRowsUsed: z.number().int().positive(),
+  }),
+  reviewed: z.object({ by: z.string().min(1), on: z.string().min(1) }),
+  byChopWeek: z.array(z.object({ week: z.number().int().positive(), mean: z.number() })).min(1),
+  survivorResidual: z.object({ mean: z.number() }),
+});
+export type MeasuredUnspentCurve = z.infer<typeof UnspentCurveSchema>;
+
+/** The one curve pricing reads. A new measurement is a new file, reviewed on its own. */
+const UNSPENT_CURVE_FILE = path.join("measured", "chop-unspent-v1.json");
 
 /** Raised when a board already exists and the caller has not said it may be replaced. */
 export class BoardLockedError extends Error {}
@@ -231,7 +258,7 @@ export class Store {
    * NOT for pricing: a board is a record, not an input (docs/data-model.md), and no
    * code path that prices a week may call this.
    */
-  readBoard(key: BoardKey): Board {
+  readBoard(key: BoardKey): Board | BoardV1 {
     const file = this.boardPath(key);
     const absolute = path.join(this.root, file);
     if (!existsSync(absolute)) {
@@ -243,15 +270,16 @@ export class Store {
     // may hold fields it cannot describe, and reporting a row-shape error about them
     // would send the reader hunting the wrong bug.
     const found = (raw as { schemaVersion?: unknown } | null)?.schemaVersion;
-    if (found !== BOARD_SCHEMA_VERSION) {
+    if (found !== BOARD_SCHEMA_VERSION && found !== 1) {
       throw new DataRootError(
-        `${file} is board schema version ${String(found)}; this build reads version ` +
+        `${file} is board schema version ${String(found)}; this build reads versions 1 and ` +
           `${BOARD_SCHEMA_VERSION}. Frozen boards are never migrated — past weeks are ` +
           `immutable — so read it with the build that wrote it.`,
       );
     }
 
-    const parsed = BoardSchema.safeParse(raw);
+    // Version 1 is read as it was written, never upgraded: a record keeps its own shape.
+    const parsed = (found === 1 ? BoardV1Schema : BoardSchema).safeParse(raw);
     if (!parsed.success) {
       throw new DataRootError(
         `${file} is not a board this build can read:\n${parsed.error.message}`,
@@ -260,6 +288,34 @@ export class Store {
     // Every load, not only the run that wrote it: a board whose dollars no longer add
     // up is a corrupt record, and a silently wrong record is worse than a missing one.
     assertEconomyCloses(parsed.data, file);
+    return parsed.data;
+  }
+
+  /**
+   * The measured unspent curve, or a refusal: missing, unreadable, the wrong shape, or
+   * not yet accepted by Logan. Never a default — a guessed curve is an invented number.
+   */
+  readUnspentCurve(): MeasuredUnspentCurve {
+    const absolute = path.join(this.root, UNSPENT_CURVE_FILE);
+    if (!existsSync(absolute)) {
+      throw new DataRootError(
+        `no measured unspent curve at ${UNSPENT_CURVE_FILE}; a guillotine room's pool cannot ` +
+          `be priced without it (tickets/007).`,
+      );
+    }
+    let raw: unknown;
+    try {
+      raw = JSON.parse(readFileSync(absolute, "utf8"));
+    } catch (error) {
+      throw new DataRootError(`${UNSPENT_CURVE_FILE} is not readable JSON: ${String(error)}`);
+    }
+    const parsed = UnspentCurveSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new DataRootError(
+        `${UNSPENT_CURVE_FILE} is not a curve this build can price from — it needs its ` +
+          `sample, date, method and a structured reviewed: { by, on }:\n${parsed.error.message}`,
+      );
+    }
     return parsed.data;
   }
 

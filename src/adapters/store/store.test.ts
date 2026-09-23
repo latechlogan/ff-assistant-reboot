@@ -193,10 +193,15 @@ function sampleBoard(overrides: Partial<Board> = {}): Board {
       // With a $0 floor, deleting `reserve +` from the check would pass unnoticed.
       economy: {
         pool: 100,
+        // Version 2 (tickets/007): nothing leaks here — a non-guillotine economy — so
+        // the reserve and the deduction are the only terms, and both are recorded.
+        leakage: 0,
+        reserve: 6,
         distributable: 94,
         availableVorp: 20,
         rosteredVorpPerTeam: 40,
         chopsRemaining: 2,
+        releaseEquivalents: 2,
         supply: 100,
         dollarsPerVorp: 0.94,
       },

@@ -22,8 +22,14 @@ import type { WaiverBoard } from "./build.ts";
  * file — it only shapes, validates and serializes.
  */
 
-/** Bumped when the board's own shape changes. A reader that meets an unknown one refuses. */
-export const BOARD_SCHEMA_VERSION = 1;
+/**
+ * Bumped when the board's own shape changes. A reader that meets an unknown one refuses.
+ *
+ * 2 (tickets/007): the economy records `leakage`, `reserve` and `releaseEquivalents`.
+ * Version 1 boards are still read, under their own identity — they are records, and a
+ * record the tool that wrote it can no longer open is not much of one.
+ */
+export const BOARD_SCHEMA_VERSION = 2;
 
 const BoardRowSchema = z.object({
   playerId: z.string().min(1),
@@ -37,7 +43,7 @@ const BoardRowSchema = z.object({
   value: z.number().nullable(),
 });
 
-const EconomySchema = z.object({
+const EconomyV1Schema = z.object({
   pool: z.number(),
   distributable: z.number(),
   availableVorp: z.number(),
@@ -47,36 +53,57 @@ const EconomySchema = z.object({
   dollarsPerVorp: z.number(),
 });
 
-const DiagnosticsSchema = z.object({
-  week: z.number().int().positive(),
-  throughWeek: z.number().int().positive(),
-  liveTeams: z.number().int().nonnegative(),
-  choppedTeams: z.number().int().nonnegative(),
-  availablePool: z.number().int().nonnegative(),
-  replacement: z.record(z.enum(PRICED_POSITIONS), z.number()),
-  survivalWeights: z.array(z.number()).nullable(),
-  floorPositions: z.array(z.enum(PRICED_POSITIONS)),
-  economy: EconomySchema.nullable(),
-  dropped: z.object({
-    rowCount: z.number().int().nonnegative(),
-    valueSum: z.number().nullable(),
-  }),
+/** The key order here is the order on disk: gross pool, what comes out of it, what is left. */
+const EconomySchema = z.object({
+  pool: z.number(),
+  leakage: z.number(),
+  reserve: z.number(),
+  distributable: z.number(),
+  availableVorp: z.number(),
+  rosteredVorpPerTeam: z.number(),
+  chopsRemaining: z.number(),
+  releaseEquivalents: z.number(),
+  supply: z.number(),
+  dollarsPerVorp: z.number(),
 });
 
-export const BoardSchema = z.object({
-  schemaVersion: z.literal(BOARD_SCHEMA_VERSION),
-  leagueKey: z.string().min(1),
-  season: z.string().regex(/^\d{4}$/),
-  week: z.number().int().positive(),
-  generatedAt: z.iso.datetime(),
-  /** Data-root-relative paths of every as-of file the run priced from. */
-  inputs: z.array(z.string().min(1)).min(1),
-  diagnostics: DiagnosticsSchema,
-  /** Only the decisions: the available players above replacement. */
-  rows: z.array(BoardRowSchema),
-});
+const diagnosticsWith = <E extends z.ZodType>(economy: E) =>
+  z.object({
+    week: z.number().int().positive(),
+    throughWeek: z.number().int().positive(),
+    liveTeams: z.number().int().nonnegative(),
+    choppedTeams: z.number().int().nonnegative(),
+    availablePool: z.number().int().nonnegative(),
+    replacement: z.record(z.enum(PRICED_POSITIONS), z.number()),
+    survivalWeights: z.array(z.number()).nullable(),
+    floorPositions: z.array(z.enum(PRICED_POSITIONS)),
+    economy: economy.nullable(),
+    dropped: z.object({
+      rowCount: z.number().int().nonnegative(),
+      valueSum: z.number().nullable(),
+    }),
+  });
+
+const envelopeWith = <V extends number, E extends z.ZodType>(version: V, economy: E) =>
+  z.object({
+    schemaVersion: z.literal(version),
+    leagueKey: z.string().min(1),
+    season: z.string().regex(/^\d{4}$/),
+    week: z.number().int().positive(),
+    generatedAt: z.iso.datetime(),
+    /** Data-root-relative paths of every as-of file the run priced from. */
+    inputs: z.array(z.string().min(1)).min(1),
+    diagnostics: diagnosticsWith(economy),
+    /** Only the decisions: the available players above replacement. */
+    rows: z.array(BoardRowSchema),
+  });
+
+export const BoardSchema = envelopeWith(BOARD_SCHEMA_VERSION, EconomySchema);
+/** Read-only: boards frozen before tickets/007. Nothing writes this shape any more. */
+export const BoardV1Schema = envelopeWith(1, EconomyV1Schema);
 
 export type Board = z.infer<typeof BoardSchema>;
+export type BoardV1 = z.infer<typeof BoardV1Schema>;
 export type BoardRow = z.infer<typeof BoardRowSchema>;
 
 /** Raised when a board does not match the shape this build writes and reads. */
@@ -161,32 +188,49 @@ export function serializeBoard(board: Board): string {
 const TOLERANCE = 0.01;
 
 /**
- * Does the board's money add up to the economy it says it came from? (tickets/004, AC4.)
+ * Does the board's money add up to the economy it says it came from? (tickets/004 AC4,
+ * tickets/007 AC4.)
  *
  * The file keeps only the positive-VORP rows, so without `dropped.valueSum` the rest
- * of the money would simply be absent and the file could not be checked. With it, the
- * identity closes in the file's own numbers:
+ * of the money would simply be absent and the file could not be checked. With it, two
+ * identities close in the file's own numbers:
  *
+ *     distributable                     =  pool − leakage − reserve
  *     Σ value(rows) + dropped.valueSum  =  reserve + distributable × availableVorp / supply
  *
- * where `reserve` (= pool − distributable) is the floor every available player is
- * guaranteed. The right-hand side is smaller than the pool on purpose: a dollar is
- * spread over the whole season's supply, and this week's available players are only
- * `availableVorp / supply` of it. The remainder is not missing — it is what the
- * rosters released by future chops are worth.
+ * The first makes the deduction legible: the room's gross FAAB, what is expected to
+ * leave unspent, and the floor every available player is guaranteed. The second is
+ * smaller than the pool on purpose: a dollar is spread over the whole season's supply,
+ * and this week's available players are only `availableVorp / supply` of it. The
+ * remainder is not missing — it is what the rosters released by future chops are worth.
  *
- * The 2026 tool's version was "= distributable", true only while supply was this
- * week's pool alone; tickets/004's AC4 was amended to this form (DECISIONS.md,
- * 2026-09-22).
+ * `reserve` is read from the file, never derived: once leakage comes out of the pool,
+ * `pool − distributable` is the reserve PLUS the leakage.
+ *
+ * A version-1 board had no leakage and no recorded reserve, so its reserve IS
+ * `pool − distributable`, and it is checked under that identity (tickets/007 AC8).
  */
-export function assertEconomyCloses(board: Board, where: string): void {
+export function assertEconomyCloses(board: Board | BoardV1, where: string): void {
   const { economy, dropped } = board.diagnostics;
   // No FAAB, no economy and no dollars on any row: nothing to close.
   if (economy === null) return;
 
+  const v2 = "leakage" in economy ? economy : null;
+  const reserve = v2 ? v2.reserve : economy.pool - economy.distributable;
+
+  if (v2) {
+    const net = v2.pool - v2.leakage - v2.reserve;
+    if (Math.abs(net - v2.distributable) > TOLERANCE) {
+      throw new BoardEconomyError(
+        `the economy in ${where} does not close: a pool of ${v2.pool.toFixed(2)} less ` +
+          `${v2.leakage.toFixed(2)} leakage and a ${v2.reserve.toFixed(2)} reserve leaves ` +
+          `${net.toFixed(2)}, but the file distributes ${v2.distributable.toFixed(2)}.`,
+      );
+    }
+  }
+
   const shown = board.rows.reduce((sum, row) => sum + (row.value ?? 0), 0);
   const actual = shown + (dropped.valueSum ?? 0);
-  const reserve = economy.pool - economy.distributable;
   const expected =
     economy.supply > 0
       ? reserve + (economy.distributable * economy.availableVorp) / economy.supply

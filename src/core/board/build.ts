@@ -1,4 +1,4 @@
-import { allocateFaab } from "../valuation/allocate.ts";
+import { allocateFaab, type UnspentCurve } from "../valuation/allocate.ts";
 import { restOfSeasonPoints } from "../valuation/points.ts";
 import { replacementLevels, vorp } from "../valuation/replacement.ts";
 import { lastMeaningfulWeek } from "../survival/last-meaningful-week.ts";
@@ -40,15 +40,7 @@ export type BoardDiagnostics = {
   readonly survivalWeights: readonly number[] | null;
   /** Positions priced at the floor rather than out of the pool. */
   readonly floorPositions: readonly Position[];
-  readonly economy: {
-    readonly pool: number;
-    readonly distributable: number;
-    readonly availableVorp: number;
-    readonly rosteredVorpPerTeam: number;
-    readonly chopsRemaining: number;
-    readonly supply: number;
-    readonly dollarsPerVorp: number;
-  } | null;
+  readonly economy: ReturnType<typeof allocateFaab>["diagnostics"] | null;
   /**
    * The rows left off the board because they are at or below replacement — counted,
    * and with their dollars totalled.
@@ -87,6 +79,11 @@ export function buildWaiverBoard(args: {
   chopsPerWeek?: number;
   /** Positions priced at the floor, their dollars redistributed. From the registry. */
   floorPositions?: readonly Position[];
+  /**
+   * The measured unspent curve (tickets/007), read from the data repo by the caller.
+   * Required to price a guillotine room with FAAB; a standard room never reads it.
+   */
+  unspentCurve?: UnspentCurve;
 }): WaiverBoard {
   const { config, index, state, weekly, throughWeek, chopsPerWeek } = args;
   const floorPositions = args.floorPositions ?? [];
@@ -166,30 +163,32 @@ export function buildWaiverBoard(args: {
 
   const availableVorp = new Map(state.availableIds.map((id) => [id, vorpOfPriced(id)]));
 
+  const rosteredVorpByTeam = state.rosters
+    .filter((roster) => !roster.eliminated)
+    .map((roster) => roster.playerIds.reduce((sum, id) => sum + vorpOfPriced(id), 0));
+
   const allocation =
     state.faabPool === null
       ? null
       : allocateFaab({
           availableVorp,
-          rosteredVorpByTeam: state.rosters
-            .filter((roster) => !roster.eliminated)
-            .map((roster) => roster.playerIds.reduce((sum, id) => sum + vorpOfPriced(id), 0)),
+          rosteredVorpByTeam,
           pool: state.faabPool,
           floor: config.waiver.minBid ?? 0,
-          /**
-           * A released roster is only worth buying if there is still a week left to
-           * play it in. The chops that qualify are the ones following the priced
-           * weeks before the last: `(last − week) × chopsPerWeek`. The final chop
-           * releases a roster nobody can use, and it is not counted.
-           *
-           * There is no `min(…, liveTeams − 1)` cap here, because it can never bind:
-           * without the `throughWeek` clamp the count is
-           * `(ceil((L−1)/c) − 1) × c ≤ (L − 1 + c − 1) − c = L − 2`, already below
-           * `L − 1`, and the clamp only makes it smaller. A guard no test can
-           * distinguish from its absence is a guard that hides a bug rather than
-           * catching one.
-           */
-          chopsRemaining: guillotine ? (pricedThroughWeek - fromWeek) * chopsPerWeek : 0,
+          // Only read without a guillotine: there, releases are whole rosters.
+          chopsRemaining: 0,
+          ...(guillotine && weights
+            ? {
+                guillotine: guillotineEconomy({
+                  config,
+                  fromWeek,
+                  pricedThroughWeek,
+                  chopsPerWeek,
+                  weights,
+                  unspentCurve: args.unspentCurve,
+                }),
+              }
+            : {}),
         });
 
   const rows: PricedRow[] = state.availableIds
@@ -238,5 +237,57 @@ export function buildWaiverBoard(args: {
           allocation === null ? null : dropped.reduce((sum, row) => sum + (row.value ?? 0), 0),
       },
     },
+  };
+}
+
+/**
+ * What the guillotine economy needs from the room (tickets/007): its chop schedule, its
+ * budget, and the measured curve — each refused by name when missing rather than
+ * defaulted, because a default here would be an invented number.
+ *
+ * The schedule is one chop per `chopsPerWeek` in each priced week, the priced window
+ * ending at the final chop (tickets/006): at one a week from week 3 with 14 live teams,
+ * weeks 3–15, 13 chops. Only one chop a week is supported (Logan, 2026-09-22): the
+ * curve was measured per chop week, and how a second chop in the same week leaks is not
+ * something anyone has looked at. Supporting it is a small change when a room needs it.
+ */
+function guillotineEconomy(g: {
+  config: LeagueConfig;
+  fromWeek: number;
+  pricedThroughWeek: number;
+  chopsPerWeek: number;
+  weights: readonly number[];
+  unspentCurve: UnspentCurve | undefined;
+}) {
+  if (g.chopsPerWeek !== 1) {
+    throw new Error(
+      `this guillotine room chops ${g.chopsPerWeek} teams a week; FAAB is priced for rooms ` +
+        `that chop one a week (tickets/007). Refusing rather than guess how the rest leak.`,
+    );
+  }
+  if (g.config.waiver.budget === null) {
+    throw new Error(
+      `this guillotine room has FAAB but no season budget in its settings, and the ` +
+        `measured unspent curve is a share of that budget.`,
+    );
+  }
+  if (g.unspentCurve === undefined) {
+    throw new Error(
+      `no measured unspent curve was given, and a guillotine room's pool cannot be priced ` +
+        `without it. Expected measured/chop-unspent-v1.json in the data repo (tickets/007).`,
+    );
+  }
+
+  const chopWeeks = Array.from(
+    { length: g.pricedThroughWeek - g.fromWeek + 1 },
+    (_, i) => g.fromWeek + i,
+  );
+
+  return {
+    fromWeek: g.fromWeek,
+    survivalWeights: g.weights,
+    chopWeeks,
+    budget: g.config.waiver.budget,
+    curve: g.unspentCurve,
   };
 }
