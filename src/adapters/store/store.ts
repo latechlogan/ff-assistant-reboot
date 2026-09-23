@@ -82,6 +82,9 @@ export function stampFrom(iso: string): string {
 
 export class DataRootError extends Error {}
 
+/** A share of a budget: what fraction was left unspent. Outside 0–1 is not a share. */
+const Share = z.number().min(0).max(1);
+
 /**
  * The measured unspent curve (tickets/007): what share of a budget leaves with a team
  * chopped in each week, and what the survivor never spends. Measured from 2025 rooms,
@@ -91,9 +94,6 @@ export class DataRootError extends Error {}
  * Logan has accepted it (docs/brief.md), and prose in `provenance.reviewedBy` is not
  * something code can check.
  */
-/** A share of a budget: what fraction was left unspent. Outside 0–1 is not a share. */
-const Share = z.number().min(0).max(1);
-
 const UnspentCurveSchema = z.object({
   /** Like a board, a curve whose version this build does not know is refused, not guessed at. */
   schemaVersion: z.literal(1),

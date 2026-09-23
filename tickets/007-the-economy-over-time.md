@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 kind: improvement
 created: 2026-09-22
 ---
@@ -182,4 +182,5 @@ So the guard that refuses to price when the reserve cannot be paid compares agai
    `provenance.reviewedBy` (data repo, uncommitted until `pnpm archive`).
 3. Tests from the criteria, by a separate agent. Confirm red.
 4. Implement both halves. Read the board. Record before/after in DECISIONS.md.
-5. `/vet`.
+5. ~~`/vet`.~~ Clear 2026-09-22 after two reviews (one must-fix: the version-1 fixture had
+   inherited v2 fields). AC7's footer read and accepted by Logan on the live week-3 rebuild.
