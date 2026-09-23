@@ -584,6 +584,24 @@ describe("007 — boards frozen before 007", () => {
     return {
       ...board,
       schemaVersion: 1,
+      diagnostics: {
+        ...board.diagnostics,
+        /**
+         * A version-1 economy exactly as boards were frozen before 007: no leakage, no
+         * recorded reserve, no releaseEquivalents. Pinned literally, not derived from
+         * sampleBoard — which moved to version 2 — so that reading version 1 with the
+         * version-2 schema fails here, as it would on the real frozen week-3 board.
+         */
+        economy: {
+          pool: 100,
+          distributable: 94,
+          availableVorp: 20,
+          rosteredVorpPerTeam: 40,
+          chopsRemaining: 2,
+          supply: 100,
+          dollarsPerVorp: 0.94,
+        },
+      },
       rows: [{ ...(board.rows[0] as Board["rows"][number]), value: rowValue }],
     };
   };
