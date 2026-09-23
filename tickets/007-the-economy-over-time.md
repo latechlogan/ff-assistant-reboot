@@ -98,7 +98,14 @@ out while AC2's formula kept it in; caught re-deriving AC2 from the artifact,
 Does NOT touch: the chopped-team-is-weaker bias, the bid range, replacement (003).
 
 ## Done looks like
-Draft, for Logan's approval:
+All eight approved by Logan, 2026-09-22.
+
+**"The week-3 inputs"** (AC1, AC2, AC5) means the frozen week-3 board's own aggregates,
+passed straight into the pure pricing code: available VORP 205.61, rostered VORP per
+live team 199.93, its survival weights, 12 releases, 13 chops in weeks 3–15, a $12,701
+pool, a $1,000 budget, and the measured curve's values. None of these is private, so the
+tests live in `pnpm check`. The private week-3 as-of files cannot, so the same numbers
+are confirmed end to end **by hand** on a live rebuild of the week-3 board.
 - **AC1** — A release after week j is counted at the survival-weighted share of points
   remaining after week j, not a whole roster. On the week-3 chopped inputs the 12
   releases total 4.25 roster-equivalents (±0.01), and the board's diagnostics say so.
@@ -107,8 +114,11 @@ Draft, for Logan's approval:
   On the week-3 inputs: $12,701 → $8,346 (±$5), and the diagnostics carry both the gross
   pool and the leakage, so the deduction is legible rather than implied.
 - **AC3** — Both come from one reviewed artifact under `measured/`, carrying its sample
-  (23 rooms, 377 chopped rosters), its date, and its method. A missing or unreadable
-  curve **refuses to price**; it never falls back to a default.
+  (23 rooms, 377 chopped rosters), its date, and its method. Pricing **refuses** — never
+  falls back to a default — when the curve is missing or unreadable, when it has no
+  entry for a chop week the room still has ahead of it, or when it carries no structured
+  acceptance (`reviewed: { by, on }`). The acceptance is added to the artifact alongside
+  the existing prose `reviewedBy`, which code cannot check.
 - **AC4** — The economy closes from the file alone. The board records `pool` (the room's
   gross FAAB), `leakage`, `reserve` and `distributable`, and both hold within $0.01:
   `distributable = pool − leakage − reserve`, so the deduction is legible in the file;
@@ -117,12 +127,18 @@ Draft, for Logan's approval:
   *(Rewritten 2026-09-22, approved by Logan: the first draft quoted 004's pre-006
   identity, and 004's check derived `reserve` as `pool − distributable`, which stops
   being true once leakage comes out of `distributable`.)*
-- **AC5** — On the week-3 inputs, $/VORP lands at ~7.9 and Hall at ~$343. If either half
-  is applied alone the test fails, which is the point: the halves ship together.
-- **AC6** — The standard league is untouched: no dollars, no curve, byte-identical board.
+- **AC5** — On the week-3 inputs, $/VORP is 7.91 (±0.02) and Hall (VORP 43.34) is $343
+  (±$2). Applying either half alone misses both, which is the point: the halves ship
+  together.
+- **AC6** — A league that is not a guillotine never reads the curve: it builds with the
+  curve file absent, and its rows, points and VORP are unchanged by this ticket. Proved
+  on a fixture. *(Reworded 2026-09-22: "byte-identical board" had nothing to compare
+  against — the standard league's board has never been built (ROADMAP item 3), and the
+  schema bump changes every board's bytes.)*
 - **AC7** — The footer states the spendable pool, the leakage deducted, and the season's
   supply in roster-equivalents, without implying any of it is a forecast of what a
-  player will cost.
+  player will cost (proved by reading the live week-3 board — display copy, which no
+  ticket has unit-tested).
 - **AC8** — Boards frozen before this ticket still load. The envelope change bumps the
   board's `schemaVersion`; `readBoard` accepts version 1 as well and checks it under
   version 1's own identity (reserve = pool − distributable, no leakage). Any other
@@ -146,9 +162,8 @@ So the guard that refuses to price when the reserve cannot be paid compares agai
 - Ask-first: writing to `../ff-assistant-data`.
 
 ## Plan (proposed)
-1. Logan approves AC1–AC8 (and the numbers above). Approved 2026-09-22: AC4, AC8, the
-   reserve decision, AC1 (re-derived: 4.250), and AC2 at $8,346 (re-derived from the
-   artifact). Still to approve: AC3, AC5, AC6, AC7.
+1. ~~Logan approves AC1–AC8.~~ Approved 2026-09-22. AC1 (4.250) and AC2 ($8,346) were
+   re-derived from the frozen board and the artifact before approval.
 2. ~~Logan reviews the leakage artifact.~~ Accepted 2026-09-22; recorded in its
    `provenance.reviewedBy` (data repo, uncommitted until `pnpm archive`).
 3. Tests from the criteria, by a separate agent. Confirm red.
