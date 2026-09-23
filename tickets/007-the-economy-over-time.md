@@ -56,7 +56,7 @@ in 17- and 18-team rooms, which a 16-team room can never reach, and the artifact
 them. And the survivor count is 24 from 23 rooms because one room ends with two
 un-eliminated rosters; that room also supplies one of the three dropped rows.
 
-The artifact now exists, **uncommitted**, at `../ff-assistant-data/measured/`:
+The artifact is committed and pushed in the data repo (9b04d6e), at `../ff-assistant-data/measured/`:
 `chop-unspent-v1.json` (schemaVersion 1, with sample, method, caveats and a shape
 review), `chop-unspent-v1-rows.csv` (the 404 raw rows) and `chop-unspent-v1-analyze.mjs`,
 which reproduces the JSON's numbers from the CSV exactly. The crawl itself needs Sleeper
@@ -106,14 +106,32 @@ Draft, for Logan's approval:
 - **AC3** — Both come from one reviewed artifact under `measured/`, carrying its sample
   (23 rooms, 377 chopped rosters), its date, and its method. A missing or unreadable
   curve **refuses to price**; it never falls back to a default.
-- **AC4** — The closed economy still closes over the named population: Σ value over rows
-  plus dropped value equals the distributable pool, within $0.01.
+- **AC4** — The economy closes from the file alone. The board records `pool` (the room's
+  gross FAAB), `leakage`, `reserve` and `distributable`, and both hold within $0.01:
+  `distributable = pool − leakage − reserve`, so the deduction is legible in the file;
+  and `Σ value(rows) + dropped.valueSum = reserve + distributable × availableVorp / supply`.
+  `reserve` is read from the file, never derived. `readBoard` checks both on every load.
+  *(Rewritten 2026-09-22, approved by Logan: the first draft quoted 004's pre-006
+  identity, and 004's check derived `reserve` as `pool − distributable`, which stops
+  being true once leakage comes out of `distributable`.)*
 - **AC5** — On the week-3 inputs, $/VORP lands at ~7.9 and Hall at ~$343. If either half
   is applied alone the test fails, which is the point: the halves ship together.
 - **AC6** — The standard league is untouched: no dollars, no curve, byte-identical board.
 - **AC7** — The footer states the spendable pool, the leakage deducted, and the season's
   supply in roster-equivalents, without implying any of it is a forecast of what a
   player will cost.
+- **AC8** — Boards frozen before this ticket still load. The envelope change bumps the
+  board's `schemaVersion`; `readBoard` accepts version 1 as well and checks it under
+  version 1's own identity (reserve = pool − distributable, no leakage). Any other
+  unknown version is still refused (004 AC7). Proved on a fixture version-1 board, and
+  by hand on the frozen `boards/2026/wk03-chopped.json`. *(Added 2026-09-22, approved
+  by Logan: without it the week-3 record — and week 4's, if frozen before this lands —
+  becomes unreadable by the tool that wrote it.)*
+
+**Decided with AC4 (Logan, 2026-09-22):** the floor reserve comes out of the
+**spendable** pool, not the gross one — floor bids are money that is actually spent.
+So the guard that refuses to price when the reserve cannot be paid compares against
+`pool − leakage`. No number moves today: both rooms bid from $0.
 
 ## Boundary
 - No invented curves: every number traces to the 2025 measurement or to the survival
@@ -125,7 +143,8 @@ Draft, for Logan's approval:
 - Ask-first: writing to `../ff-assistant-data`.
 
 ## Plan (proposed)
-1. Logan approves AC1–AC7 (and the numbers above).
+1. Logan approves AC1–AC8 (and the numbers above). AC4, AC8 and the reserve decision:
+   approved 2026-09-22.
 2. Put the measurement in the data repo with its provenance; Logan reviews the artifact
    before it prices anything (`docs/brief.md`: a measured curve is accepted by Logan, not
    by a test).
