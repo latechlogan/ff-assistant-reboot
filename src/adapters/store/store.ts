@@ -105,7 +105,7 @@ const UnspentCurveSchema = z.object({
 export type MeasuredUnspentCurve = z.infer<typeof UnspentCurveSchema>;
 
 /** The one curve pricing reads. A new measurement is a new file, reviewed on its own. */
-const UNSPENT_CURVE_FILE = path.join("measured", "chop-unspent-v1.json");
+export const UNSPENT_CURVE_FILE = path.join("measured", "chop-unspent-v1.json");
 
 /** Raised when a board already exists and the caller has not said it may be replaced. */
 export class BoardLockedError extends Error {}

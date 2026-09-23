@@ -22,7 +22,7 @@ import { freeze, type FreezeOutcome } from "../board/freeze.ts";
 import { createLogger } from "../obs/logger.ts";
 import { SleeperClient } from "../sleeper/client.ts";
 import { SleeperSource } from "../sleeper/sleeper.ts";
-import { BoardLockedError, DataRootError, Store } from "../store/store.ts";
+import { BoardLockedError, DataRootError, Store, UNSPENT_CURVE_FILE } from "../store/store.ts";
 
 /**
  * The Tuesday board (docs/architecture.md, "When Logan runs the Tuesday board").
@@ -156,6 +156,13 @@ async function main(): Promise<void> {
   warnInactiveWithPoints(inactiveWithPoints, logger);
   const neverMatched = mergeUnmatched(scoredWeeks);
 
+  // Only a guillotine room with FAAB prices from the measured unspent curve (tickets/007),
+  // and only it reads the file: a standard room must build with the curve absent. It is
+  // named in the board's inputs, because the dollars were priced from it.
+  const needsCurve = config.format === "guillotine" && config.waiver.kind === "faab";
+  const unspentCurve = needsCurve ? store.readUnspentCurve() : undefined;
+  if (needsCurve) files.push(UNSPENT_CURVE_FILE);
+
   const board = buildWaiverBoard({
     config,
     index,
@@ -164,6 +171,7 @@ async function main(): Promise<void> {
     throughWeek: LAST_NFL_WEEK,
     ...(entry.chopsPerWeek === undefined ? {} : { chopsPerWeek: entry.chopsPerWeek }),
     ...(entry.floorPositions === undefined ? {} : { floorPositions: entry.floorPositions }),
+    ...(unspentCurve === undefined ? {} : { unspentCurve }),
   });
   logger.log("debug", "board.built", {
     rows: board.rows.length,
@@ -315,23 +323,36 @@ function print(
         `(23 guillotine rooms, 2025 — the top weekly bids were RB, WR, QB and TE, never a K).`,
     );
   }
-  // Said plainly, every run: what a dollar buys on average over the rest of the season.
-  if (diagnostics.economy) {
-    // A survival curve is what makes a room a guillotine, and only a guillotine room
-    // has a week it gets decided in. Both numbers are the board's; the CLI does no
-    // arithmetic of its own.
-    const season =
-      diagnostics.survivalWeights === null
-        ? ""
-        : `\nseason decided in week ${diagnostics.throughWeek}: ` +
-          `${diagnostics.economy.chopsRemaining} release(s) left that a priced week can still use.`;
+  // Said plainly, every run: what a dollar buys on average over the rest of the season,
+  // and where the dollars and the supply came from (tickets/007 AC7). Every number is
+  // the board's; the CLI does no arithmetic of its own.
+  const economy = diagnostics.economy;
+  if (economy) {
+    const $ = (n: number): string => `$${Math.round(n).toLocaleString("en-US")}`;
+    // A survival curve is what makes a room a guillotine: only there does money leave
+    // with chopped teams, and only there is there a week the season gets decided in.
+    const guillotine = diagnostics.survivalWeights !== null;
+    const money = guillotine
+      ? `\n  ${$(economy.pool)} in the room, ${$(economy.leakage)} of it expected to leave unspent ` +
+        `(chopped teams' and the survivor's, measured in 2025 rooms)` +
+        (economy.reserve > 0 ? `, ${$(economy.reserve)} held for the floor` : "") +
+        `: ${$(economy.distributable)} priced.`
+      : "";
+    const supply = guillotine
+      ? `\n  season supply ${economy.supply.toFixed(0)} VORP: ${economy.availableVorp.toFixed(0)} ` +
+        `available now, plus ${economy.chopsRemaining} release(s) worth ` +
+        `${economy.releaseEquivalents.toFixed(2)} rosters, each counted for the weeks left after its chop.` +
+        `\nseason decided in week ${diagnostics.throughWeek}.`
+      : ` over a season supply of ${economy.supply.toFixed(0)} VORP.`;
     console.log(
-      `\nvalue = what he is worth · $${diagnostics.economy.dollarsPerVorp.toFixed(2)} per VORP ` +
-        `over a season supply of ${diagnostics.economy.supply.toFixed(0)} VORP.` +
-        season +
-        `\nIt is not what he will cost — a bid range comes later.`,
+      `\nvalue = what he is worth · $${economy.dollarsPerVorp.toFixed(2)} per VORP` +
+        (guillotine ? "." : "") +
+        money +
+        supply +
+        `\nNone of this is what he will cost — a bid range comes later.`,
     );
   }
+
   // Printed every run, empty or not: a diagnostic that only appears when it fires is
   // one nobody learns to read, and this silence already cost every kicker 20% once.
   const { unmatchedRules, unmatchedStats } = opts.neverMatched;
