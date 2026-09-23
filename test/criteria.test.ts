@@ -90,6 +90,21 @@ describe("a criterion is satisfied only by a test named for its own ticket", () 
   });
 });
 
+describe("a test that names nothing real", () => {
+  test("011 AC1 — a test naming a ticket that does not exist is reported, not counted", () => {
+    // The copy-paste guard: a mistyped ticket number must fail by name, not by accident.
+    const root = fixtureRoot(
+      { "042-alpha.md": ticket("open", "- **AC1** — alpha's only criterion.") },
+      testNamed("999 AC1 — a ticket nobody wrote"),
+    );
+
+    const { code, out } = runCriteria(root);
+
+    expect(code).toBe(1);
+    expect(out).toContain("there is no ticket 999");
+  });
+});
+
 describe("what ran, and what did not", () => {
   test("011 AC2 — every ticket that is not done or dropped is checked by default", () => {
     const root = fixtureRoot(
@@ -240,6 +255,20 @@ describe("started work must trace fully; unstarted work is listed, not failed", 
   });
 });
 
+describe("a ticket being built with nothing to build to", () => {
+  test("011 AC3 — an in-progress ticket with no criteria at all fails", () => {
+    const root = fixtureRoot({
+      "054-aimless.md": ticket("in-progress", "Just prose, no AC lines."),
+    });
+
+    const { code, out } = runCriteria(root);
+
+    expect(code).toBe(1);
+    expect(out).toContain("054-aimless.md");
+    expect(out).toContain("no AC lines");
+  });
+});
+
 describe("a criterion proved somewhere a test cannot reach", () => {
   test("011 AC4 — a `(proved by …)` criterion passes, and the annotation is printed", () => {
     const root = fixtureRoot({
@@ -254,6 +283,22 @@ describe("a criterion proved somewhere a test cannot reach", () => {
     expect(code).toBe(0);
     expect(out).toContain("046 AC1");
     expect(out).toContain("proved by `pnpm check`");
+  });
+
+  test("011 AC4 — an unstarted ticket's annotations are still printed, not hidden behind 'unstarted'", () => {
+    const root = fixtureRoot({
+      "055-claimed.md": ticket(
+        "open",
+        "- **AC1** — the rule holds (proved by `pnpm check`: depcruise enforces it).",
+      ),
+    });
+
+    const { code, out } = runCriteria(root);
+
+    expect(code).toBe(0);
+    expect(out).toContain("055 AC1");
+    expect(out).toContain("proved by `pnpm check`");
+    expect(out).not.toContain("unstarted");
   });
 
   test("011 AC4 — an annotation does not license the rest of the ticket", () => {
