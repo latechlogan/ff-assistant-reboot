@@ -103,8 +103,12 @@ const NOTHING_LEAKS = {
   survivorResidual: { mean: 0 },
 };
 
-function guillotineBoard(week: number, liveTeams: number, chopsPerWeek = 1) {
-  const config = deriveLeagueConfig(leagueFixture());
+function guillotineBoard(week: number, liveTeams: number, chopsPerWeek = 1, faab = true) {
+  const payload = leagueFixture();
+  // Rolling waivers: no currency, so no dollars are priced and 007's one-chop-a-week
+  // rule for FAAB never comes into it. Only the timing is left to test.
+  if (!faab) payload.settings.waiver_type = 0;
+  const config = deriveLeagueConfig(payload);
   const { index } = buildPlayerIndex(playersFixture());
   const state = summarizeLeagueState({ rosters: roomOf(liveTeams), index, config, week });
 
@@ -166,54 +170,27 @@ describe("a guillotine season stops at the week it is decided", () => {
     expect(guillotineBoard(14, 3).diagnostics.economy?.chopsRemaining).toBe(1);
   });
 
-  test("006 AC3 — the release count follows the priced window at any cadence, not the live-team count", () => {
+  test("006 AC3 — the priced window follows the cadence; a two-a-week room with FAAB is refused (007)", () => {
     /**
-     * The count is `min((lastMeaningfulWeek − week) × chopsPerWeek, liveTeams − 1)`:
-     * every chop that still leaves a priced week behind it, capped by the number of
-     * chops the room has left to make.
+     * As 006 was built, this case also checked the release COUNT at two chops a week.
+     * Since tickets/007 that count feeds FAAB pricing, and FAAB is priced only for rooms
+     * that chop one a week (Logan, 2026-09-22): the unspent curve was measured in
+     * one-a-week rooms, and using it for a second chop in the same week would be a
+     * number nobody measured. So the two-a-week count no longer exists to check.
      *
-     * The one-a-week cases above cannot tell that formula apart from the simpler
-     * `liveTeams − 1 − chopsPerWeek`, because at one chop a week the two agree. A
-     * two-a-week room separates them, and so does a small room late in the season.
+     * What still holds at any cadence is the window: which weeks are priced. A room
+     * with no currency proves that without touching the money side.
      */
 
-    // Week 3, 14 live, TWO a week. The 13 chops fit into weeks 3…9, so the last
-    // meaningful week is 9 and the chops after weeks 3…8 — 6 weeks × 2 — release
-    // rosters that at least one priced week can still use. 12, not 13, and not the
-    // 11 that `liveTeams − 1 − chopsPerWeek` would give.
-    const fast = guillotineBoard(3, 14, 2);
-    expect(fast.diagnostics.throughWeek).toBe(9);
+    // Week 3, 14 live, TWO a week: the 13 chops fit into weeks 3…9.
+    expect(guillotineBoard(3, 14, 2, false).diagnostics.throughWeek).toBe(9);
+    // Week 8, 4 live, two a week: 3 chops need ceil(3 / 2) = 2 weeks, so week 9.
+    expect(guillotineBoard(8, 4, 2, false).diagnostics.throughWeek).toBe(9);
+    // Week 9, 2 live, two a week: the last chop ends the season after week 9.
+    expect(guillotineBoard(9, 2, 2, false).diagnostics.throughWeek).toBe(9);
 
-    const fastEconomy = fast.diagnostics.economy;
-    if (!fastEconomy) throw new Error("the fixture league has FAAB; this should not be null");
-
-    expect(fastEconomy.chopsRemaining).toBe(12);
-    expect(fastEconomy.chopsRemaining).not.toBe(11); // liveTeams − 1 − chopsPerWeek
-    expect(fastEconomy.chopsRemaining).not.toBe(13); // liveTeams − 1, the old count
-    expect(fastEconomy.supply).toBeCloseTo(
-      fastEconomy.availableVorp + 12 * fastEconomy.rosteredVorpPerTeam,
-      6,
-    );
-
-    /**
-     * Week 8, 4 live, two a week: 3 chops need ceil(3 / 2) = 2 weeks, so the last
-     * meaningful week is 9. Only the chops after week 8 — two of them — leave week 9
-     * behind to play the released roster in. The third chop, the one that ends the
-     * season after week 9, releases a roster nobody can use.
-     *
-     * This case separates the formula from BOTH near-misses at once: `liveTeams − 1`
-     * is 3 and `liveTeams − 1 − chopsPerWeek` is 1.
-     */
-    const late = guillotineBoard(8, 4, 2);
-    expect(late.diagnostics.throughWeek).toBe(9);
-    expect(late.diagnostics.economy?.chopsRemaining).toBe(2);
-
-    // Week 9, 2 live, two a week: the single remaining chop ends the season after
-    // week 9, so nothing it releases is playable. The cap never makes the count
-    // exceed the chops the room has left.
-    const last = guillotineBoard(9, 2, 2);
-    expect(last.diagnostics.throughWeek).toBe(9);
-    expect(last.diagnostics.economy?.chopsRemaining).toBe(0);
+    // And the same room WITH FAAB refuses by name rather than price on a guess.
+    expect(() => guillotineBoard(3, 14, 2)).toThrow(/chops 2 teams a week.*one a week/);
   });
 
   test("006 AC4 — one team left is a decided season, not a cadence error", () => {

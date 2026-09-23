@@ -71,13 +71,16 @@ sequenceDiagram
         CLI->>SL: fetch state, league, rosters, weekly projections
         SL->>ST: write new as-of files (never overwrite)
     end
-    CLI->>C: League + payloads + BidCurve
+    opt a guillotine room with FAAB
+        CLI->>ST: read measured/chop-unspent-v1.json (refused if missing or not reviewed)
+    end
+    CLI->>C: League + payloads + unspent curve + BidCurve
     C->>C: parse league (refuse unsupported format)
     C->>C: index players, score stat lines per league rules
     C->>C: live rosters, available pool, FAAB remaining
     C->>C: survival weights re-anchored to this week
     C->>C: replacement level, VORP, rest-of-season points
-    C->>C: FAAB value over the season's supply
+    C->>C: pool net of expected leakage, over a supply of time-weighted releases
     C->>C: bid range per row from the curve
     C-->>CLI: Board (rows + diagnostics)
     CLI-->>U: table — positive-VORP rows, value, bid range, balance, pace
