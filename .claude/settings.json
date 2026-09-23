@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f package.json ] || exit 0; pnpm check 1>&2 || exit 2"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-check.sh\""
           }
         ]
       }
