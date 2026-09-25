@@ -6,12 +6,13 @@ import { BOARD_SCHEMA_VERSION, type Board } from "../../core/board/artifact.ts";
 import type { Transaction } from "../sleeper/schemas.ts";
 import type { FetchPolicy } from "../sleeper/sleeper.ts";
 import { Store } from "../store/store.ts";
+import legs from "../../../test/fixtures/transactions-leg3.json" with { type: "json" };
 import { freeze } from "./freeze.ts";
 
 /**
- * The freeze decision (tickets/004, AC1 and AC6), against a real store on a temp dir
- * and a stub transactions feed. `claimsHaveCleared` has its own tests; these prove the
- * wiring around it — that a cleared week really writes nothing.
+ * The freeze decision (tickets/004, AC1 and AC6; tickets/014), against a real store on
+ * a temp dir and a stub transactions feed. `claimsHaveCleared` has its own tests; these
+ * prove the wiring around it — that a cleared week really writes nothing.
  */
 
 /** A no-FAAB board keeps the fixture small: there is no economy to close. */
@@ -75,7 +76,12 @@ function stubSource(transactions: Transaction[]) {
   return source;
 }
 
-const PENDING: Transaction[] = [{ type: "waiver", status: "pending" }];
+/**
+ * Leg N is empty until leg N−1's waiver run has happened (tickets/014), so "not yet
+ * cleared" is an empty log. Before 014 this was a pending waiver claim — which, in leg
+ * N, is itself proof the run happened.
+ */
+const OPEN: Transaction[] = [];
 const CLEARED: Transaction[] = [{ type: "waiver", status: "complete" }];
 
 describe("freezing a board", () => {
@@ -94,7 +100,7 @@ describe("freezing a board", () => {
       currentWeek: 4,
       leagueId: "stub-league",
       store,
-      source: stubSource(PENDING),
+      source: stubSource(OPEN),
     });
 
     expect(outcome).toEqual({ kind: "froze", file });
@@ -110,7 +116,7 @@ describe("freezing a board", () => {
       currentWeek: 4,
       leagueId: "stub-league",
       store,
-      source: stubSource(PENDING),
+      source: stubSource(OPEN),
     });
 
     expect(outcome).toEqual({ kind: "overwrote", file });
@@ -149,7 +155,7 @@ describe("freezing a board", () => {
   test("004 AC6 — the claims question is always asked fresh, never answered from a cached file", async () => {
     // A copy pulled before the waiver run says "not cleared" for the rest of the week,
     // which is the one answer that lets a record be destroyed.
-    const source = stubSource(PENDING);
+    const source = stubSource(OPEN);
 
     await freeze({ artifact: board(), currentWeek: 4, leagueId: "stub-league", store, source });
 
@@ -157,7 +163,7 @@ describe("freezing a board", () => {
   });
 
   test("004 AC6 — a past week is never frozen, and Sleeper is never asked", async () => {
-    const source = stubSource(PENDING);
+    const source = stubSource(OPEN);
 
     const outcome = await freeze({
       artifact: board(),
@@ -170,5 +176,51 @@ describe("freezing a board", () => {
     expect(outcome).toEqual({ kind: "past-week", week: 4, currentWeek: 5 });
     expect(source.calls).toBe(0);
     expect(store.hasBoard({ season: "2026", week: 4, leagueKey: "chopped" })).toBe(false);
+  });
+
+  test("014 AC3 — the week's log has opened and nothing is frozen yet: nothing is written", async () => {
+    // The 2026-09-24 standard-league case: a Thursday run, six free-agent pickups, no claims.
+    const outcome = await freeze({
+      artifact: board(),
+      currentWeek: 4,
+      leagueId: "stub-league",
+      store,
+      source: stubSource(legs.standardLeg3AfterRun),
+    });
+
+    expect(outcome).toMatchObject({ kind: "cleared", file, existing: false });
+    expect(store.hasBoard({ season: "2026", week: 4, leagueKey: "chopped" })).toBe(false);
+  });
+
+  test("014 AC4 — the week's log has opened: a frozen board is left byte-for-byte alone", async () => {
+    // The 2026-09-24 chopped-league case: wk03-chopped.json, with ten pickups in leg 3.
+    store.writeBoard(board());
+    const before = readFileSync(path.join(root, file), "utf8");
+
+    const outcome = await freeze({
+      artifact: board({ generatedAt: "2026-09-29T16:00:00.000Z" }),
+      currentWeek: 4,
+      leagueId: "stub-league",
+      store,
+      source: stubSource(legs.choppedLeg3AfterRun),
+    });
+
+    expect(outcome).toMatchObject({ kind: "cleared", file, existing: true });
+    expect(readFileSync(path.join(root, file), "utf8")).toBe(before);
+  });
+
+  test("014 AC5 — the week's log is still empty: a Tuesday rerun replaces the board and says OVERWROTE", async () => {
+    store.writeBoard(board());
+
+    const outcome = await freeze({
+      artifact: board({ generatedAt: "2026-09-29T16:00:00.000Z" }),
+      currentWeek: 4,
+      leagueId: "stub-league",
+      store,
+      source: stubSource(legs.choppedLeg3BeforeRun),
+    });
+
+    expect(outcome).toEqual({ kind: "overwrote", file });
+    expect(readFileSync(path.join(root, file), "utf8")).toContain("2026-09-29T16:00:00.000Z");
   });
 });
