@@ -86,9 +86,10 @@ sequenceDiagram
     CLI-->>U: table — positive-VORP rows, value, bid range, balance, pace
     opt the current week
         CLI->>SL: fetch this week's transactions, always fresh
-        alt no waiver claim has cleared
+        Note over CLI,SL: this board's claims settle in the PREVIOUS week's log;<br/>this week's log opens only after that run (tickets/014)
+        alt this week's log is still empty
             CLI->>ST: freeze boards/<season>/wk<NN>-<league>.json (FROZE / OVERWROTE)
-        else claims cleared
+        else it holds any transaction — the run has happened
             CLI-->>U: REFUSED (a board exists, exit 2) or NOT FROZEN (none yet)
         end
     end
