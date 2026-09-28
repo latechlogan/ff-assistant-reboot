@@ -39,7 +39,8 @@ first live run of 014's lock and of 007's pricing.
    auctions and 60 outbid losing bids across the 09-16, 09-18 and 09-23 runs, every
    failed claim carrying its amount and a reason. Too small for a curve; enough to check
    the 2025 prior against. Only "claimed by another owner" is a losing bid. The 09-23
-   run sits in leg 2 and has no as-of copy yet (the archived leg 2 predates it).
+   run sits in leg 2: `raw/2026/transactions-chopped-wk02--2026-09-28T02-44-20-802Z.json`
+   (data repo b77cd71) is the first copy that holds it.
 5. **Bid range, Logan's balance, room spend pace** — unchanged, still on trial.
 
 Four defects were found and fixed today, all by comparing against the old tool or by
