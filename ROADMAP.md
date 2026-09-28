@@ -35,9 +35,12 @@ first live run of 014's lock and of 007's pricing.
 4. **Crawl and measure** — ~~the chop-unspent half~~ measured, accepted by Logan and
    pricing since 2026-09-22 (ticket 007; `measured/chop-unspent-v1.json`, archived). It
    is a 2025 prior — re-measure from our own room as the season runs. The bid corpus for
-   the *range* is still to do. Check first: the old tool's 2026-09-22 refetch of our
-   own week 1–2 logs holds far more than the archive said (week 1: 46 waiver
-   transactions). Whether they carry losing bids is unchecked.
+   the *range* is still to do. Our own room has one (checked 2026-09-27): 13 contested
+   auctions and 60 outbid losing bids across the 09-16, 09-18 and 09-23 runs, every
+   failed claim carrying its amount and a reason. Too small for a curve; enough to check
+   the 2025 prior against. Only "claimed by another owner" is a losing bid. The 09-23
+   run sits in leg 2: `raw/2026/transactions-chopped-wk02--2026-09-28T02-44-20-802Z.json`
+   (data repo b77cd71) is the first copy that holds it.
 5. **Bid range, Logan's balance, room spend pace** — unchanged, still on trial.
 
 Four defects were found and fixed today, all by comparing against the old tool or by
