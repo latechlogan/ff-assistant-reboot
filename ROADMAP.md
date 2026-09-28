@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-09-24 (014 landed: a frozen board now really locks once its claims run; the old tool's week-3 files archived; the standard league runs) <!-- /wrap refreshes this; if this date is more than ~2 weeks old, treat the goal as suspect and ask before optimizing for it -->
+Last updated: 2026-09-27 (our own room has losing bids: 13 auctions, 60 outbid bids, the 09-23 run archived; week 4 is still the first end-to-end Tuesday) <!-- /wrap refreshes this; if this date is more than ~2 weeks old, treat the goal as suspect and ask before optimizing for it -->
 
 ## Current goal
 Replace the 2026 tool's waiver board with one Logan trusts and can reason about: for
